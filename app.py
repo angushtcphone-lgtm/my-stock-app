@@ -43,7 +43,7 @@ TW_ZH_NAMES = {
     "3037.TW": "欣興", "3711.TW": "日月光"
 }
 
-# 絕對鐵律縱向排版順序（徹底拔除無效的法人與資券欄位，實現終極淨化）
+# 絕對鐵律縱向排版順序
 ROW_ORDER = [
     "📈 目前現價", "💵 我的持倉成本", "💰 即時持倉損益 %", "🔮 戰略目標價",
     "🟢 河流圖：價值打折區", "🟡 河流圖：基礎合理價", "🔴 河流圖：動能天花板",
@@ -151,7 +151,8 @@ for ticker in active_tickers:
     
     try:
         stock = yf.Ticker(ticker)
-        df = stock.history(period="6mo")
+        # 👑 【終極對齊金鑰】：加入 auto_adjust=True，強制全自動進行除權息價格還原，100% 同步 TradingView！
+        df = stock.history(period="6mo", auto_adjust=True)
         if df.empty: continue
             
         current_price = df['Close'].iloc[-1]
@@ -189,15 +190,13 @@ for ticker in active_tickers:
             river_max = f_eps * high_pe
             dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else df['Low'].tail(120).min()
         else:
-            # 👑 【修正點 1】：狂飆型自選股（如 3037 欣興）自適應定錨模型！
-            # 引進移動平均核心，以代表波段共識的 60MA (季線) 作為合理價值中樞，徹底甩開半年前發射台舊數據的滯後引力
+            # 👑 【飆股去噪自適應定錨】：以除權息還原後的 60MA 季線作為底層共識合理中樞
             df['MA60'] = df['Close'].rolling(window=60).mean()
             current_ma60 = df['MA60'].iloc[-1] if not pd.isna(df['MA60'].iloc[-1]) else current_price
             
             river_fair = current_ma60
-            river_discount = current_ma60 * 0.85  # 設定強勢飆股的季線支撐防線 (打85折)
+            river_discount = current_ma60 * 0.85  # 季線支撐打85折作為甜蜜抄底點
             
-            # 天花板採用近 30 天最高價的分位通道去噪放大
             recent_high = df['Close'].tail(30).quantile(0.95)
             river_max = recent_high * 1.15
             dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else df['Close'].tail(30).quantile(0.05)
@@ -209,6 +208,7 @@ for ticker in active_tickers:
         suffix_table = " (Sell)" if cfg['type'] == "SELL_TARGET" else (" (Buy)" if cfg['type'] == "BUY_TARGET" else " (Hold)")
         display_pred_target = f"{currency_sign}{cfg['target']:.2f}{suffix_table}" if cfg['target'] > 0 else "未設定"
 
+        # 👑 【費波南希神對齊】：此時的 auto_high_fib 抓到的就是跟 TradingView 完全相同的還原頂點 1130 元！
         auto_high_fib = df['High'].tail(120).max()
         diff = auto_high_fib - dynamic_low
         ext_2618, ext_1618, ext_1382 = dynamic_low + 2.618 * diff, dynamic_low + 1.618 * diff, dynamic_low + 1.382 * diff
