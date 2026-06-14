@@ -35,7 +35,7 @@ PE_PRESETS = {
     '2317.TW': {'low_pe': 10.0, 'norm_pe': 12.0, 'high_pe': 15.0}
 }
 
-# 台股中文對應字典
+# 台股中文對應字典（完整保留您手動加入的大聯大 3702）
 TW_ZH_NAMES = {
     "2330.TW": "台積電", "2454.TW": "聯發科", "2317.TW": "鴻海",
     "2308.TW": "台達電", "2382.TW": "廣達", "2603.TW": "長榮",
@@ -152,12 +152,15 @@ for ticker in active_tickers:
     
     try:
         stock = yf.Ticker(ticker)
-        # 👑 【降維解法】：將 auto_adjust 設為 False，直接抓取交易所原始純淨 K 線節點，徹底阻斷小數點衍生誤差！
         df = stock.history(period="6mo", auto_adjust=False)
         if df.empty: continue
             
         current_price = df['Close'].iloc[-1]
         info = stock.info
+        
+        # 👑 【V18 新增優化處 1】：計算前 119 天的歷史最低點（排除最新一日），判斷最新現價是否不幸破底
+        hist_low_119 = df['Low'].iloc[:-1].tail(119).min() if len(df) > 1 else current_price
+        is_breaking_low = current_price < hist_low_119
         
         if market_choice == "🇹🇼 台股戰略中心":
             company_name = TW_ZH_NAMES.get(ticker, info.get('shortName', ticker))
@@ -189,7 +192,6 @@ for ticker in active_tickers:
             river_discount = f_eps * low_pe
             river_fair = f_eps * norm_pe
             river_max = f_eps * high_pe
-            # 👑 費氏計算底層低點：直接向交易所原始數據取絕對值整數
             auto_low_fib = df['Low'].tail(120).min()
         else:
             df['MA60'] = df['Close'].rolling(window=60).mean()
@@ -206,12 +208,12 @@ for ticker in active_tickers:
         suffix_table = " (Sell)" if cfg['type'] == "SELL_TARGET" else (" (Buy)" if cfg['type'] == "BUY_TARGET" else " (Hold)")
         display_pred_target = f"{currency_sign}{cfg['target']:.2f}{suffix_table}" if cfg['target'] > 0 else "未設定"
 
-        # 👑 【神聖對齊】：此時的高低點會 100% 吐出交易所原始純淨整數（如台積電 2440 與 1415）
+        # 👑 【神聖對齊】：此時的高低點會 100% 吐出交易所原始純淨整數
         auto_high_fib = df['High'].tail(120).max()
         diff = auto_high_fib - auto_low_fib
         
         ext_2618 = auto_low_fib + 2.618 * diff
-        ext_1618 = auto_low_fib + 1.618 * diff
+        ext_1618 = auto_low_fib + 1.1618 * diff
         ext_1382 = auto_low_fib + 1.382 * diff
         
         fib_382  = auto_high_fib - 0.382 * diff
@@ -227,6 +229,10 @@ for ticker in active_tickers:
             pl_display = "❌ 尚未持倉"
             action_signal = "🟢 🚨 進入甜蜜建倉區！" if cfg['type'] == 'BUY_TARGET' and cfg['target'] > 0 and current_price <= cfg['target'] else "🟡 ⏳ 靜態伏擊觀察中"
             
+        # 👑 【V18 新增優化處 2】：空頭接刀安全煞車機制。只要判定雷虎實質破底，強制蓋台沒收所有買進訊號！
+        if is_breaking_low:
+            action_signal = "❌ 🚨 結構破底失效！嚴禁接刀，靜待止跌重新築底"
+
         target_map = holding_matrix if cfg['cost'] else watching_matrix
         target_map[display_key] = {
             "📈 目前現價": f"{currency_sign}{current_price:.2f}", "💵 我的持倉成本": cost_display, "💰 即時持倉損益 %": pl_display,
