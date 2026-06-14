@@ -6,7 +6,7 @@ import numpy as np
 st.set_page_config(page_title="全球決策終端", layout="wide")
 
 # ==============================================================================
-# 🎨 【核心美化】金融終端專屬樣式表
+# 🎨 【核心美美學】金融終端專屬樣式表
 # ==============================================================================
 st.markdown(
     '<style>'
@@ -43,14 +43,14 @@ TW_ZH_NAMES = {
     "3037.TW": "欣興", "3711.TW": "日月光"
 }
 
-# 絕對鐵律縱向排版順序
+# 👑 【修正點 4】：從鐵律排序中永久拔除法人持股比與空頭放空比，實現極致乾淨版面
 ROW_ORDER = [
     "📈 目前現價", "💵 我的持倉成本", "💰 即時持倉損益 %", "🔮 戰略目標價",
     "🟢 河流圖：價值打折區", "🟡 河流圖：基礎合理價", "🔴 河流圖：動能天花板",
     "🛠️ 戰略部署規劃", "🔔 建議操作狀態", "💥 261.8% 終極阻力天花板",
     "💥 161.8% 終極停盈點", "💥 138.2% 獲利減倉點", "🟢 38.2% 波段初步壓力",
     "🟢 50.0% 關鍵分水嶺", "🟢 61.8% 黃金鐵板支撐", "💵 實際 PE",
-    "🔮 預期 PE", "🛡️ 法人持股比例", "🩳 空頭放空比", "⚡ 法人資金動態趨勢", "🚦 主力點火狀態"
+    "🔮 預期 PE", "⚡ 法人資金動態趨勢", "🚦 主力點火狀態"
 ]
 
 # ==============================================================================
@@ -65,7 +65,7 @@ if market_choice == "🇺🇸 美股核心指揮部":
     currency_sign = "$"
 else:
     st.title("🎯 專屬台股戰略儀表板")
-    default_tickers = "2330, 2344, 2454, 2317"
+    default_tickers = "2330, 3037, 2454, 2317"
     currency_sign = "NT$"
 
 # ==============================================================================
@@ -79,7 +79,7 @@ if market_choice == "🇺🇸 美股核心指揮部":
     with c1:
         st.markdown('<div class="execution-card card-us-sell"><div class="card-title">🚀 RKLB ── 獲利套現</div>'
                     '<div class="card-body"><ul><li><b>動作：</b>掛好 <b>$110.00 限價賣出 20 股</b>。</li>'
-                    '<li><b>核心：</b>鎖定指數基金搶跑動能，套現 <b>$2,200 電腦彈藥</b>！</li></ul></div></div>', unsafe_allow_html=True)
+                    '<li><b>核心：</b>鎖定多頭搶跑動能，完美鎖定 <b>$2,200 現金彈藥</b>！</li></ul></div></div>', unsafe_allow_html=True)
     with c2:
         st.markdown('<div class="execution-card card-us-buy"><div class="card-title">🔥 NVDA ── 世紀抄底</div>'
                     '<div class="card-body"><ul><li><b>動作：</b>跌至 <b>$185.00</b> 觸發警報即開槍。</li>'
@@ -135,7 +135,7 @@ for ticker in active_tickers:
         def_target = 110.0 if 'RKLB' in ticker else (1200.0 if '2330' in ticker else 0.0)
         target = st.number_input(f"戰略目標價", value=def_target, step=1.0, key=f"tg_{market_choice}_{ticker}")
         
-        def_desc = "限價單已準備，衝高獲利出清" if action_type == "SELL_TARGET" else "下殺至目標價附近執行金字塔建倉"
+        def_desc = "限價單已準備，衝高獲利出清" if action_type == "SELL_TARGET" else "下殺至目標價附近執行金金字塔建倉"
         action_desc = st.text_input(f"部署規劃", value=def_desc, key=f"ds_{market_choice}_{ticker}")
         
         user_configs[ticker] = {'cost': cost, 'target': target, 'type': action_type, 'action_desc': action_desc}
@@ -155,26 +155,18 @@ for ticker in active_tickers:
         if df.empty: continue
             
         current_price = df['Close'].iloc[-1]
-        auto_low, auto_high = df['Low'].tail(120).min(), df['High'].tail(120).max()
         info = stock.info
         
         if market_choice == "🇹🇼 台股戰略中心":
             company_name = TW_ZH_NAMES.get(ticker, info.get('shortName', ticker))
             clean_code = ticker.replace(".TW", "")
             display_key = f"{clean_code}\n({company_name})"
-            
-            # 👑 【修復點 1】：全面換裝 100% 穩固的台灣本地版 Yahoo 奇摩個股直達籌碼航線，永不 404！
-            ticker_tv_info[display_key] = [
-                {"label": f"📈 {company_name} K線", "url": f"https://www.tradingview.com/chart/?symbol=TWSE:{clean_code}"},
-                {"label": f"🏛️ 三大法人籌碼", "url": f"https://tw.stock.yahoo.com/quote/{clean_code}/institutional-investors"},
-                {"label": f"📉 融資融券變化", "url": f"https://tw.stock.yahoo.com/quote/{clean_code}/margin"}
-            ]
+            # 👑 【修正點 2 & 3】：全面移除三大法人與資券按鈕，只保留最純淨的TradingView K線直達連結
+            ticker_tv_info[display_key] = {"label": f"📈 {company_name}", "url": f"https://www.tradingview.com/chart/?symbol=TWSE:{clean_code}"}
         else:
             company_name = info.get('shortName', info.get('longName', ticker))
             display_key = f"{ticker}\n({company_name})"
-            ticker_tv_info[display_key] = [
-                {"label": f"📈 {ticker} K線", "url": f"https://www.tradingview.com/chart/?symbol={ticker}"}
-            ]
+            ticker_tv_info[display_key] = {"label": f"📈 {ticker}", "url": f"https://www.tradingview.com/chart/?symbol={ticker}"}
         
         df['Vol_MA3'] = df['Volume'].rolling(window=3).mean()
         df['Vol_MA20'] = df['Volume'].rolling(window=20).mean()
@@ -185,12 +177,10 @@ for ticker in active_tickers:
         prev_vol_ma20 = df['Vol_MA20'].iloc[-2] if len(df) > 21 else 1
         latest_return = (df['Close'].iloc[-1] - df['Open'].iloc[-1]) / df['Open'].iloc[-1]
         ignition_signal = "🔥 主力爆量點火" if (latest_vol > (2.0 * prev_vol_ma20) and latest_return > 0.01) else "⏳ 結構盤整"
-        dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else auto_low
-            
-        pe_ratio, forward_pe = info.get('trailingPE', None), info.get('forwardPE', None)
         
-        # 👑 【修復點 2】：河流圖精準度中樞！防禦景氣循環股本益比吹泡泡 Bug
+        pe_ratio, forward_pe = info.get('trailingPE', None), info.get('forwardPE', None)
         preset = PE_PRESETS.get(ticker, None)
+        
         if preset:
             low_pe, norm_pe, high_pe = preset['low_pe'], preset['norm_pe'], preset['high_pe']
             f_pe = forward_pe if (forward_pe and forward_pe > 0) else (pe_ratio if pe_ratio else norm_pe)
@@ -198,13 +188,16 @@ for ticker in active_tickers:
             river_discount = f_eps * low_pe
             river_fair = f_eps * norm_pe
             river_max = f_eps * high_pe
+            dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else df['Low'].tail(120).min()
         else:
-            # 針對未在預設保險箱內的台美自選股（如周期股華邦電），啟動「歷史價格通道箱體回歸模型」
-            # 100% 免疫 Yahoo 數據污染引發的幾千元荒謬错误
+            # 👑 【修正點 1】：欣興估值防爆手術！引入分位數去噪模型，徹底沒收單日髒數據引發的千元天價
+            auto_low = df['Close'].quantile(0.05)
+            auto_high = df['Close'].quantile(0.95)
             river_discount = auto_low * 0.90
             river_fair = (auto_low + auto_high) / 2
             river_max = auto_high * 1.10
-            
+            dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else auto_low
+
         display_discount = f"{currency_sign}{river_discount:.2f}"
         display_fair = f"{currency_sign}{river_fair:.2f}"
         display_max = f"{currency_sign}{river_max:.2f}"
@@ -212,22 +205,15 @@ for ticker in active_tickers:
         suffix_table = " (Sell)" if cfg['type'] == "SELL_TARGET" else (" (Buy)" if cfg['type'] == "BUY_TARGET" else " (Hold)")
         display_pred_target = f"{currency_sign}{cfg['target']:.2f}{suffix_table}" if cfg['target'] > 0 else "未設定"
 
-        diff = auto_high - dynamic_low
-        ext_2618, ext_1618, ext_1382 = dynamic_low + 2.618 * diff, dynamic_low + 1.618 * diff, dynamic_low + 1.382 * diff
-        fib_382, fib_500, fib_618  = auto_high - 0.382 * diff, auto_high - 0.5 * diff, auto_high - 0.618 * diff
+        # 費波南希運算 (以去噪後的動態低點重新定錨)
+        auto_high_fib = df['High'].tail(120).max() if not preset else df['High'].tail(120).max()
+        diff = auto_high_fib - dynamic_low
+        ext_2618, ext_1618, ext_1382 = dynamic_low + 2.618 * diff, dynamic_low + 1.1618 * diff, dynamic_low + 1.382 * diff
+        fib_382, fib_500, fib_618  = auto_high_fib - 0.382 * diff, auto_high_fib - 0.5 * diff, auto_high_fib - 0.618 * diff
         
-        if market_choice == "🇹🇼 台股戰略中心":
-            inst_held_display, short_display = "請看上方官方直達連結", "請看上方官方直達連結"
-        else:
-            inst_held = info.get('institutionalPercentHeld', info.get('heldPercentInstitutions', 0))
-            inst_held_display = f"{inst_held * 100:.1f}%" if inst_held and inst_held > 0 else "74.6%"
-            short_float = info.get('shortPercentOfFloat', 0)
-            short_display = f"{short_float * 100:.1f}%" if short_float else "11.2%"
-
         cost_display = f"{currency_sign}{cfg['cost']:.2f}" if cfg['cost'] else "❌ 尚未建倉"
         if cfg['cost'] and cfg['cost'] > 0:
-            st_cost = cfg['cost']
-            pl_pct = ((current_price - st_cost) / st_cost) * 100
+            pl_pct = ((current_price - cfg['cost']) / cfg['cost']) * 100
             pl_display = f"+{pl_pct:.1f}% 🟢" if pl_pct >= 0 else f"{pl_pct:.1f}% 🔴"
             action_signal = "🔴 💰 達到計畫出清點！" if cfg['type'] == 'SELL_TARGET' and current_price >= cfg['target'] else "🟡 ⏳ 核心持股續抱中"
         else:
@@ -243,7 +229,7 @@ for ticker in active_tickers:
             "💥 138.2% 獲利減倉點": f"{currency_sign}{ext_1382:.2f}", "🟢 38.2% 波段初步壓力": f"{currency_sign}{fib_382:.2f}",
             "🟢 50.0% 關鍵分水嶺": f"{currency_sign}{fib_500:.2f}", "🟢 61.8% 黃金鐵板支撐": f"{currency_sign}{fib_618:.2f}",
             "💵 實際 PE": f"{pe_ratio:.1f}x" if pe_ratio else "成長中", "🔮 預期 PE": f"{forward_pe:.1f}x" if forward_pe else "無",
-            "🛡️ 法人持股比例": inst_held_display, "🩳 空頭放空比": short_display, "⚡ 法人資金動態趨勢": trend_signal, "🚦 主力點火狀態": ignition_signal
+            "⚡ 法人資金動態趨勢": trend_signal, "🚦 主力點火狀態": ignition_signal
         }
     except Exception as e:
         st.error(f"無法自動載入 {ticker} 數據: {e}")
@@ -267,13 +253,12 @@ if tab_titles:
     
     for i, chunk in enumerate(holding_chunks):
         with ui_tabs[current_tab_idx]:
-            st.caption("📈 快捷決策航線 (點擊直達官方數據核心)")
-            for display_key in chunk:
+            # 👑 【修正點 2】：恢復為最受好評的 4 欄等寬極簡乾淨 K 線快捷按鈕配置
+            st.caption("📈 K線圖 (點擊直達 TradingView)")
+            cols_btn = st.columns(4)
+            for idx, display_key in enumerate(chunk):
                 if display_key in ticker_tv_info:
-                    links = ticker_tv_info[display_key]
-                    cols_btn = st.columns(len(links))
-                    for idx, link_info in enumerate(links):
-                        with cols_btn[idx]: st.link_button(link_info["label"], link_info["url"], use_container_width=True)
+                    with cols_btn[idx]: st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
             st.markdown("") 
             chunk_dict = {k: holding_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict).reindex(ROW_ORDER), use_container_width=True)
@@ -281,13 +266,12 @@ if tab_titles:
         
     for i, chunk in enumerate(watching_chunks):
         with ui_tabs[current_tab_idx]:
-            st.caption("📈 快捷決策航線 (點擊直達官方數據核心)")
-            for display_key in chunk:
+            # 👑 【修正點 2】：恢復為最受好評的 4 欄等寬極簡乾淨 K 線快捷按鈕配置
+            st.caption("📈 K線圖 (點擊直達 TradingView)")
+            cols_btn = st.columns(4)
+            for idx, display_key in enumerate(chunk):
                 if display_key in ticker_tv_info:
-                    links = ticker_tv_info[display_key]
-                    cols_btn = st.columns(len(links))
-                    for idx, link_info in enumerate(links):
-                        with cols_btn[idx]: st.link_button(link_info["label"], link_info["url"], use_container_width=True)
+                    with cols_btn[idx]: st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
             st.markdown("") 
             chunk_dict = {k: watching_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict).reindex(ROW_ORDER), use_container_width=True)
@@ -301,14 +285,14 @@ st.subheader("💡 機構級數據決策智慧指引")
 tab_gui1, tab_gui2, tab_gui3 = st.tabs(["📊 本益比河流估值心法", "🩳 軋空籌碼心法", "⚡ 量能趨勢與法人比例"])
 
 with tab_gui1:
-    st.info("📊 本益比河流圖多維度模型：🟢價值打折區為長線安全邊際；🟡基礎合理價為共識中樞；🔴動能天花板強烈建議分批停盈。")
+    st.info("📊 本益比河流圖模型：🟢價值打折區為長線安全邊際；🟡基礎合理價為共識中樞；🔴動能天花板強烈建議分批停盈。")
 with tab_gui2:
     st.warning("🔥 火山爆發型軋空：當空頭放空比 > 10% 且股價頑強不跌，將迫使空頭不計成本買回平倉，引發暴漲！")
 with tab_gui3:
     st.success("🛡️ 法人持股比例：50%~80% 屬於法人深度護盤的核心資產，流動性健全且下殺時具備上演算法接盤護體。")
 
 # ==============================================================================
-# 🔄 【前端無感刷新】利用 HTML Meta 標籤重整，100% 根除走私與殘留
+# 🔄 【前端無感刷新】利用 HTML Meta 標籤重整
 # ==============================================================================
 st.markdown("---")
 st.components.v1.html('<meta http-equiv="refresh" content="60">', height=0)
