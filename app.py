@@ -1,4 +1,4 @@
-import streamlit as st  # 👑 終極修復點：補回丟失的 as，消滅 line 1 語法錯誤！
+import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -232,6 +232,4 @@ for ticker in active_tickers:
             
         target = st.number_input(f"{clean_label} 戰略目標價{suffix}", value=default_target, step=1.0, key=f"target_{market_choice}_{ticker}")
         default_desc = "限價單已準備，衝高獲利出清" if action_type == "SELL_TARGET" else "下殺至目標價附近執行金字塔建倉"
-        action_desc = st.text_input(f"{clean_label} 戰略部署規劃", value=default_desc, key=f"desc_{market_choice}_{ticker}")
-        
-        user
+        action_desc = st.text_input(f"{clean_label} 戰略
