@@ -6,7 +6,7 @@ import numpy as np
 st.set_page_config(page_title="全球決策終端", layout="wide")
 
 # ==============================================================================
-# 🎨 【核心美美學】金融終端專屬樣式表
+# 🎨 【核心美化】金融終端專屬樣式表
 # ==============================================================================
 st.markdown(
     '<style>'
@@ -43,7 +43,7 @@ TW_ZH_NAMES = {
     "3037.TW": "欣興", "3711.TW": "日月光"
 }
 
-# 👑 【修正點 4】：從鐵律排序中永久拔除法人持股比與空頭放空比，實現極致乾淨版面
+# 絕對鐵律縱向排版順序（徹底拔除無效的法人與資券欄位，實現終極淨化）
 ROW_ORDER = [
     "📈 目前現價", "💵 我的持倉成本", "💰 即時持倉損益 %", "🔮 戰略目標價",
     "🟢 河流圖：價值打折區", "🟡 河流圖：基礎合理價", "🔴 河流圖：動能天花板",
@@ -135,7 +135,7 @@ for ticker in active_tickers:
         def_target = 110.0 if 'RKLB' in ticker else (1200.0 if '2330' in ticker else 0.0)
         target = st.number_input(f"戰略目標價", value=def_target, step=1.0, key=f"tg_{market_choice}_{ticker}")
         
-        def_desc = "限價單已準備，衝高獲利出清" if action_type == "SELL_TARGET" else "下殺至目標價附近執行金金字塔建倉"
+        def_desc = "限價單已準備，衝高獲利出清" if action_type == "SELL_TARGET" else "下殺至目標價附近執行金字塔建倉"
         action_desc = st.text_input(f"部署規劃", value=def_desc, key=f"ds_{market_choice}_{ticker}")
         
         user_configs[ticker] = {'cost': cost, 'target': target, 'type': action_type, 'action_desc': action_desc}
@@ -161,7 +161,6 @@ for ticker in active_tickers:
             company_name = TW_ZH_NAMES.get(ticker, info.get('shortName', ticker))
             clean_code = ticker.replace(".TW", "")
             display_key = f"{clean_code}\n({company_name})"
-            # 👑 【修正點 2 & 3】：全面移除三大法人與資券按鈕，只保留最純淨的TradingView K線直達連結
             ticker_tv_info[display_key] = {"label": f"📈 {company_name}", "url": f"https://www.tradingview.com/chart/?symbol=TWSE:{clean_code}"}
         else:
             company_name = info.get('shortName', info.get('longName', ticker))
@@ -190,13 +189,18 @@ for ticker in active_tickers:
             river_max = f_eps * high_pe
             dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else df['Low'].tail(120).min()
         else:
-            # 👑 【修正點 1】：欣興估值防爆手術！引入分位數去噪模型，徹底沒收單日髒數據引發的千元天價
-            auto_low = df['Close'].quantile(0.05)
-            auto_high = df['Close'].quantile(0.95)
-            river_discount = auto_low * 0.90
-            river_fair = (auto_low + auto_high) / 2
-            river_max = auto_high * 1.10
-            dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else auto_low
+            # 👑 【修正點 1】：狂飆型自選股（如 3037 欣興）自適應定錨模型！
+            # 引進移動平均核心，以代表波段共識的 60MA (季線) 作為合理價值中樞，徹底甩開半年前發射台舊數據的滯後引力
+            df['MA60'] = df['Close'].rolling(window=60).mean()
+            current_ma60 = df['MA60'].iloc[-1] if not pd.isna(df['MA60'].iloc[-1]) else current_price
+            
+            river_fair = current_ma60
+            river_discount = current_ma60 * 0.85  # 設定強勢飆股的季線支撐防線 (打85折)
+            
+            # 天花板採用近 30 天最高價的分位通道去噪放大
+            recent_high = df['Close'].tail(30).quantile(0.95)
+            river_max = recent_high * 1.15
+            dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else df['Close'].tail(30).quantile(0.05)
 
         display_discount = f"{currency_sign}{river_discount:.2f}"
         display_fair = f"{currency_sign}{river_fair:.2f}"
@@ -205,10 +209,9 @@ for ticker in active_tickers:
         suffix_table = " (Sell)" if cfg['type'] == "SELL_TARGET" else (" (Buy)" if cfg['type'] == "BUY_TARGET" else " (Hold)")
         display_pred_target = f"{currency_sign}{cfg['target']:.2f}{suffix_table}" if cfg['target'] > 0 else "未設定"
 
-        # 費波南希運算 (以去噪後的動態低點重新定錨)
-        auto_high_fib = df['High'].tail(120).max() if not preset else df['High'].tail(120).max()
+        auto_high_fib = df['High'].tail(120).max()
         diff = auto_high_fib - dynamic_low
-        ext_2618, ext_1618, ext_1382 = dynamic_low + 2.618 * diff, dynamic_low + 1.1618 * diff, dynamic_low + 1.382 * diff
+        ext_2618, ext_1618, ext_1382 = dynamic_low + 2.618 * diff, dynamic_low + 1.618 * diff, dynamic_low + 1.382 * diff
         fib_382, fib_500, fib_618  = auto_high_fib - 0.382 * diff, auto_high_fib - 0.5 * diff, auto_high_fib - 0.618 * diff
         
         cost_display = f"{currency_sign}{cfg['cost']:.2f}" if cfg['cost'] else "❌ 尚未建倉"
@@ -253,7 +256,6 @@ if tab_titles:
     
     for i, chunk in enumerate(holding_chunks):
         with ui_tabs[current_tab_idx]:
-            # 👑 【修正點 2】：恢復為最受好評的 4 欄等寬極簡乾淨 K 線快捷按鈕配置
             st.caption("📈 K線圖 (點擊直達 TradingView)")
             cols_btn = st.columns(4)
             for idx, display_key in enumerate(chunk):
@@ -266,7 +268,6 @@ if tab_titles:
         
     for i, chunk in enumerate(watching_chunks):
         with ui_tabs[current_tab_idx]:
-            # 👑 【修正點 2】：恢復為最受好評的 4 欄等寬極簡乾淨 K 線快捷按鈕配置
             st.caption("📈 K線圖 (點擊直達 TradingView)")
             cols_btn = st.columns(4)
             for idx, display_key in enumerate(chunk):
