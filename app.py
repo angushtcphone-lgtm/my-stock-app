@@ -6,7 +6,7 @@ import numpy as np
 st.set_page_config(page_title="全球決策終端", layout="wide")
 
 # ==============================================================================
-# 🎨 【核心美化】金融終端專專屬 CSS 樣式表
+# 🎨 【核心美化】金融終端專屬樣式表
 # ==============================================================================
 st.markdown(
     '<style>'
@@ -32,16 +32,15 @@ PE_PRESETS = {
     'ISRG': {'low_pe': 35.0, 'norm_pe': 48.0, 'high_pe': 55.0},
     '2330.TW': {'low_pe': 18.0, 'norm_pe': 22.0, 'high_pe': 26.0},
     '2454.TW': {'low_pe': 15.0, 'norm_pe': 18.0, 'high_pe': 22.0},
-    '2317.TW': {'low_pe': 10.0, 'norm_pe': 12.0, 'high_pe': 15.0}
+    '2317.TW': {'low_pe': 10.0, 'norm_pe': 12.0, 'high_pe': 15.0},
+    '3702.TW': {'low_pe': 10.0, 'norm_pe': 12.5, 'high_pe': 15.0}
 }
 
-# 台股中文對應字典
+# 👑 【精準定錨 1】：完整鎖定您的 8 檔台股核心陣容中文字典
 TW_ZH_NAMES = {
-    "2330.TW": "台積電", "2454.TW": "聯發科", "2317.TW": "鴻海",
-    "2308.TW": "台達電", "2382.TW": "廣達", "2603.TW": "長榮",
-    "2344.TW": "華邦電", "2383.TW": "台光電", "2408.TW": "南亞科",
-    "3037.TW": "欣興", "3711.TW": "日月光", "3702.TW": "大聯大",
-    "8033.TW": "雷虎"
+    "2330.TW": "台積電", "2308.TW": "台達電", "2344.TW": "華邦電", 
+    "2382.TW": "廣達",   "2408.TW": "南亞科", "3037.TW": "欣興", 
+    "3702.TW": "大聯大", "8033.TW": "雷虎"
 }
 
 # 絕對鐵律縱向排版順序
@@ -62,11 +61,13 @@ market_choice = st.sidebar.radio("🌐 選擇看盤市場", ["🇺🇸 美股核
 
 if market_choice == "🇺🇸 美股核心指揮部":
     st.title("🎯 專屬美股戰略儀表板")
-    default_tickers = "RKLB, NVDA, AAPL, ISRG"
+    # 👑 【精準定錨 2】：完整寫死您的 14 檔美股戰略代碼，天王老子來了也不會掉！
+    default_tickers = "MARA, RKLB, GLW, RCAT, NVDA, TSLA, EOSE, AVGO, WM1, OKLO, MSFT, ONDS, AVAV, SMR"
     currency_sign = "$"
 else:
     st.title("🎯 專屬台股戰略儀表板")
-    default_tickers = "2330, 3037, 2454, 2317"
+    # 👑 【精準定錨 3】：完整寫死您的 8 檔台股代碼
+    default_tickers = "2330, 2308, 2344, 2382, 2408, 3037, 3702, 8033"
     currency_sign = "NT$"
 
 # ==============================================================================
@@ -152,12 +153,15 @@ for ticker in active_tickers:
     
     try:
         stock = yf.Ticker(ticker)
-        # 👑 【降維解法】：將 auto_adjust 設為 False，直接抓取交易所原始純淨 K 線節點，徹底阻斷小數點衍生誤差！
         df = stock.history(period="6mo", auto_adjust=False)
         if df.empty: continue
             
         current_price = df['Close'].iloc[-1]
         info = stock.info
+        
+        # 👑 【風控安全閘】：盤查前 119 天歷史最低點，檢驗雷虎今日現價是否破底
+        hist_low_119 = df['Low'].iloc[:-1].tail(119).min() if len(df) > 1 else current_price
+        is_breaking_low = current_price < hist_low_119
         
         if market_choice == "🇹🇼 台股戰略中心":
             company_name = TW_ZH_NAMES.get(ticker, info.get('shortName', ticker))
@@ -189,7 +193,6 @@ for ticker in active_tickers:
             river_discount = f_eps * low_pe
             river_fair = f_eps * norm_pe
             river_max = f_eps * high_pe
-            # 👑 費氏計算底層低點：直接向交易所原始數據取絕對值整數
             auto_low_fib = df['Low'].tail(120).min()
         else:
             df['MA60'] = df['Close'].rolling(window=60).mean()
@@ -206,12 +209,12 @@ for ticker in active_tickers:
         suffix_table = " (Sell)" if cfg['type'] == "SELL_TARGET" else (" (Buy)" if cfg['type'] == "BUY_TARGET" else " (Hold)")
         display_pred_target = f"{currency_sign}{cfg['target']:.2f}{suffix_table}" if cfg['target'] > 0 else "未設定"
 
-        # 👑 【神聖對齊】：此時的高低點會 100% 吐出交易所原始純淨整數（如台積電 2440 與 1415）
+        # 費波南希運算 (交易所原始純淨整數)
         auto_high_fib = df['High'].tail(120).max()
         diff = auto_high_fib - auto_low_fib
         
         ext_2618 = auto_low_fib + 2.618 * diff
-        ext_1618 = auto_low_fib + 1.618 * diff
+        ext_1618 = auto_low_fib + 1.1618 * diff
         ext_1382 = auto_low_fib + 1.382 * diff
         
         fib_382  = auto_high_fib - 0.382 * diff
@@ -227,6 +230,10 @@ for ticker in active_tickers:
             pl_display = "❌ 尚未持倉"
             action_signal = "🟢 🚨 進入甜蜜建倉區！" if cfg['type'] == 'BUY_TARGET' and cfg['target'] > 0 and current_price <= cfg['target'] else "🟡 ⏳ 靜態伏擊觀察中"
             
+        # 👑 【煞車系統】：判定實質破底（如雷虎破線），強制沒收訊號改為最高警報
+        if is_breaking_low:
+            action_signal = "❌ 🚨 結構破底失效！嚴禁接刀，靜待止跌重新築底"
+
         target_map = holding_matrix if cfg['cost'] else watching_matrix
         target_map[display_key] = {
             "📈 目前現價": f"{currency_sign}{current_price:.2f}", "💵 我的持倉成本": cost_display, "💰 即時持倉損益 %": pl_display,
@@ -297,7 +304,7 @@ with tab_gui3:
     st.success("🛡️ 法人持股比例：50%~80% 屬於法人深度護盤的核心資產，流動性健全且下殺時具備上演算法接盤護體。")
 
 # ==============================================================================
-# 🔄 【前端無感刷新】利用 HTML Meta 標籤重整
+# 🔄 【前端無感刷新】
 # ==============================================================================
 st.markdown("---")
 st.components.v1.html('<meta http-equiv="refresh" content="60">', height=0)
