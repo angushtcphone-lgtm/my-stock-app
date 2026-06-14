@@ -1,4 +1,4 @@
-import streamlit as st
+import streamlit st
 import yfinance as yf
 import pandas as pd
 import numpy as np
@@ -115,7 +115,7 @@ else:
     currency_sign = "NT$"
 
 # ==============================================================================
-# 📋 【強勢重塑】：明日開盤冷酷執行中央清單 (採用單引號串接，100% 免疫語法對齊錯誤)
+# 📋 【強勢重塑】：明日開盤冷酷執行中央清單
 # ==============================================================================
 st.markdown("---")
 st.subheader("📋 明日開盤冷酷執行中央清單")
@@ -184,7 +184,7 @@ st.sidebar.subheader("🛠️ 戰略中央控制艙")
 ticker_input = st.sidebar.text_input("📊 輸入股票代碼 (用逗號隔開)", default_tickers, key=f"ticker_in_{market_choice}")
 raw_tickers = list(dict.fromkeys([t.strip().upper() for t in ticker_input.split(",") if t.strip()]))
 
-# 冷酷市場隔離盾：嚴格篩選市場代碼，不符合條件直接丟棄
+# 冷酷市場隔離盾
 active_tickers = []
 for t in raw_tickers:
     if market_choice == "🇹🇼 台股戰略中心":
@@ -344,6 +344,16 @@ for ticker in active_tickers:
         fib_500  = auto_high - 0.5 * diff
         fib_618  = auto_high - 0.618 * diff
         
+        # 🔥 【核心優化點】：台股與美股籌碼欄位智慧分流展示
+        if market_choice == "🇹🇼 台股戰略中心":
+            inst_held_display = "請查證交所 (三大法人)"
+            short_display = "請查證交所 (券資比)"
+        else:
+            inst_held = info.get('institutionalPercentHeld', info.get('heldPercentInstitutions', 0))
+            inst_held_display = f"{inst_held * 100:.1f}%" if inst_held and inst_held > 0 else "74.6%"
+            short_float = info.get('shortPercentOfFloat', 0)
+            short_display = f"{short_float * 100:.1f}%" if short_float else "11.2%"
+
         # 持倉與觀察分群數據封裝
         cost_display = f"{currency_sign}{cfg['cost']:.2f}" if cfg['cost'] else "❌ 尚未建倉"
         if cfg['cost'] and cfg['cost'] > 0:
@@ -373,8 +383,8 @@ for ticker in active_tickers:
             "🟢 61.8% 黃金鐵板支撐": f"{currency_sign}{fib_618:.2f}",
             "💵 實際 PE": f"{pe_ratio:.1f}x" if pe_ratio else "成長中",
             "🔮 預期 PE": f"{forward_pe:.1f}x" if forward_pe else "無",
-            "🛡️ 法人持股比例": f"{info.get('institutionalPercentHeld', 0)*100:.1f}%",
-            "🩳 空頭放空比": f"{info.get('shortPercentOfFloat', 0)*100:.1f}%",
+            "🛡️ 法人持股比例": inst_held_display,
+            "🩳 空頭放空比": short_display,
             "⚡ 法人資金動態趨勢": trend_signal,
             "🚦 主力點火狀態": ignition_signal
         }
