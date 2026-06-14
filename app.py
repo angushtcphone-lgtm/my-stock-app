@@ -3,8 +3,8 @@ import yfinance as yf
 import pandas as pd
 
 st.set_page_config(page_title="機構級全維度決策矩陣", layout="wide")
-st.title("🎯 專屬美股戰略儀表板：多維動態籌碼與估值矩陣")
-st.caption("即時數據源：Yahoo Finance | 2026 最終進化版：固定歷史箱體 + 籌碼量能動態趨勢")
+st.title("🎯 專屬美股戰略儀表板：多維動態籌碼與估值中樞")
+st.caption("即時數據源：Yahoo Finance | 2026 最終完全體：縱橫轉置矩陣 + 智慧分頁中樞")
 
 # 1. 核心自選股設定 (鎖定發動前歷史基本箱體)
 watchlist = {
@@ -22,18 +22,15 @@ for ticker, cfg in watchlist.items():
         df = stock.history(period="6mo")
         current_price = df['Close'].iloc[-1]
         
-        # 2. 【核心籌碼動態變化計算】：用 3日均量 / 20日均量 監控法人資金流向變動！
+        # 2. 籌碼動態變化計算 (3MA / 20MA)
         df['Vol_MA3'] = df['Volume'].rolling(window=3).mean()
         df['Vol_MA20'] = df['Volume'].rolling(window=20).mean()
         
         latest_ma3_vol = df['Vol_MA3'].iloc[-1]
         latest_ma20_vol = df['Vol_MA20'].iloc[-1]
-        
-        # 計算量能動態變化比率
         volume_trend_ratio = latest_ma3_vol / latest_ma20_vol if latest_ma20_vol > 0 else 1.0
         
-        # 依據變化率判定趨勢狀態
-        if volume_trend_ratio >= 1.3:
+        if volume_trend_ratio >= 1.2:
             trend_signal = f"🔥 資金狂飆 ({volume_trend_ratio:.2f}倍速) | 機構不計成本瘋狂進場！"
         elif volume_trend_ratio >= 1.0:
             trend_signal = f"📈 動態增溫 ({volume_trend_ratio:.2f}倍速) | 主力緩步加倉推進"
@@ -70,7 +67,7 @@ for ticker, cfg in watchlist.items():
         fib_500  = cfg['base_high'] - 0.5 * diff
         fib_618  = cfg['base_high'] - 0.618 * diff
         
-        # 6. 【操作建議與智慧燈號強勢回歸】
+        # 6. 操作建議與智慧燈號
         if cfg['type'] == 'BUY_TARGET' and current_price <= cfg['target']:
             action_signal = "🟢 🚨 訊號觸發：進入甜蜜建倉區，無情開槍買進！"
         elif cfg['type'] == 'SELL_TARGET' and current_price >= cfg['target']:
@@ -86,12 +83,12 @@ for ticker, cfg in watchlist.items():
             "📈 目前現價": f"${current_price:.2f}",
             "🛠️ 戰略部署規劃": cfg['action_desc'],
             "🔔 建議操作狀態": action_signal,
-            "⚡ 法人資金動態趨勢 (3MA/20MA)": trend_signal,
+            "⚡ 法人資金動態趨勢": trend_signal,
             "🚦 主力點火": ignition_signal,
-            "💥 161.8% 停盈": f"${ext_1618:.2f}",
-            "💥 138.2% 減倉": f"${ext_1382:.2f}",
-            "🟢 50% 分水嶺": f"${fib_500:.2f}",
-            "🟢 61.8% 鐵板區": f"${fib_618:.2f}",
+            "💥 161.8% 停盈點": f"${ext_1618:.2f}",
+            "💥 138.2% 減倉點": f"${ext_1382:.2f}",
+            "🟢 50% 壓力分水嶺": f"${fib_500:.2f}",
+            "🟢 61.8% 鐵板支撐區": f"${fib_618:.2f}",
             "💵 實際 PE": pe_display,
             "🔮 預期 PE": f_pe_display,
             "🛡️ 法人持股比例": inst_held_display,
@@ -100,36 +97,41 @@ for ticker, cfg in watchlist.items():
     except Exception as e:
         st.error(f"無法載入 {ticker} 數據: {e}")
 
+# 🔥 核心優化：橫軸與縱軸互換 (轉置矩陣輸出)
 if matrix_data:
-    st.dataframe(pd.DataFrame(matrix_data), use_container_width=True, hide_index=True)
+    df_raw = pd.DataFrame(matrix_data)
+    # 將股碼設為索引，並進行轉置 (.T)，讓公司股碼變成功頭欄位
+    df_transposed = df_raw.set_index("📊 股碼").T
+    st.dataframe(df_transposed, use_container_width=True)
 
-# ─── 網頁最下方：全新擴充優化 4 大戰略備註說明 ───
+# ─── 網頁最下方：改用 Tabs 分頁元件，徹底根除文字重疊 Bug ───
 st.markdown("---")
-st.subheader("💡 機構級數據決策智慧指引（實戰判讀核心）")
+st.subheader("💡 機構級數據決策智慧指引（實戰判讀中樞）")
 
-col_note1, col_note2 = st.columns(2)
+tab1, tab2, tab3 = st.tabs(["📊 估值引擎心法", "🩳 軋空籌碼心法", "⚡ 量能趨勢與法人比例"])
 
-with col_note1:
+with tab1:
     st.info("""
-    **📊 估值引擎判讀心法（實際 PE vs 預期 PE）**
-    * **【實際 PE > 預期 PE】 $\implies$ 🚀 高成長優質標的：** 代表華爾街大數據集體預測該公司「未來的 EPS 獲利將會大爆發」（例如輝達預期 EPS 將大增至 $12.74）。未來的龐大業績會迅速填滿估值。此時若預期 PE 極低（如 16.1x），一旦市場情緒恢復到歷史正常 PE，股價將迎來爆發性的大牛市（如推算 NVDA 目標價 $400）。
-    * **【實際 PE < 預期 PE】 $\implies$ ⚠️ 獲利衰退/估值過高：** 代表市場預估未來一年的賺錢能力正在萎縮，此時即便現價看似便宜，本質上面臨估值泡沫與殺估值風險，嚴禁在半山腰撈飛刀。
-    """)
-    st.markdown("""
-    **🛡️ 法人持股比例（Institutional Held %）的黃金戰略關係**
-    * **【50% ~ 80%】 ── 機構黃金防禦區：** 頂級藍籌股與核心資產的標準結構。代表「聰明錢」（共同基金、主權基金）深度護盤。股價下殺挑戰費波南希 61.8% 鐵板區時，會有巨量機構演算法買盤進場沒收，安全係數極高。
-    * **【高於 90%】 ── 流動性枯竭警訊：** 機構幾乎把股票買光了。代表市場上已經沒有潛在的新主力能進來抬轎；且一旦某家大基金換股出清，極易引發多頭踩踏的連環車禍。
-    * **【低於 30%】 ── 散戶市/高投機標的：** 籌碼極度分散，風吹草動大家就會互相踩踏，波動劇烈，只適合極小資金短線投機。
+    **📈 實際 PE vs 預期 PE 的戴維斯雙擊效應**
+    * **【實際 PE > 預期 PE】 ➔ 🚀 高成長優質標的：** 代表華爾街分析師集體預測該公司「未來的 EPS 獲利將會大爆發」（例如目前輝達現價 $205.19，預期 PE 卻掉到 16.1x，代表預估未來 EPS 高達 $12.74）。未來的龐大業績會迅速填滿估值。一旦市場情緒恢復到歷史正常 PE（如 31x），股價將迎來爆發性的大牛市（目標價直指 $400）。
+    * **【實際 PE < 預期 PE】 ➔ ⚠️ 獲利衰退/估值過高：** 代表市場預估未來一年的賺錢能力正在萎縮，此時即便現價看似便宜，本質上面臨殺估值風險，嚴禁在半山腰撈飛刀。
     """)
 
-with col_note2:
+with tab2:
     st.warning("""
-    **🩳 籌碼引擎判讀心法（高放空比不跌之瘋狂軋空）**
-    * **【空頭放空比 > 10% 且 股價頑強不跌】 $\implies$ 進入波段噴發起漲勢：**
-        代表大量作空的機構已經被長線主力死死鎖定在底部。大家因為長期看好基本面，惜售不賣股票，股價不但不跌還緩步推升。這將強烈迫使空頭機構面臨無限虧損的恐懼，進而在市場上瘋狂掛單「不計成本地買回平倉」。這種被迫買回的連環海嘯，就是引發股價斷頭式暴漲的瘋狂軋空訊號！
+    **🔥 火山爆發型軋空（Short Squeeze）原理**
+    * **【空頭放空比 > 10% 且 股價頑強不跌】 ➔ 進入波段強勢噴發潮：**
+        代表大量作空的對沖基金已經被長線主力（大戶）死死鎖定在底部。大家因為長期看好基本面，惜售不賣股票，股價不但不跌還緩步推升。這將強烈迫使空頭機構面臨無限虧損的恐懼，進而在市場上瘋狂掛單「不計成本地買回平倉」。這種被迫買回的連環買盤海嘯，就是引發股價斷頭式暴漲的瘋狂軋空訊號！
     """)
+
+with tab3:
     st.success("""
-    **⚡ 法人資金動態趨勢（3MA/20MA 量能加速度）判讀**
-    * 由於美股法人持股比例（13F報告）每季才公佈一次，具備嚴重落後性。因此本系統獨家採用**「3日移動平均量 $\div$ 20日移動平均量」**作為法人即時動態的照妖鏡。
-    * 當指標衝破 **1.2x ~ 2.0x 倍速以上**，代表法人資金正在「**當下這幾天**」瘋狂加速流入吸籌，或者空頭正在全力踩踏補回，這是波段大行情即時噴發的最神聖足跡！
+    **⚡ 法人資金動態趨勢（3MA/20MA 量能加速度）**
+    * 由於美股法人持股比例（13F報告）每季才公佈一次，具備嚴重落後性。因此本系統獨家採用**「3日移動平均量 ÷ 20日移動平均量」**作為法人即時動態的照妖鏡。
+    * 當指標衝破 **1.2x ~ 2.0x 倍速以上**，代表法人資金正在「**當下這幾天**」瘋狂加速流入吸籌，或者是空頭正在全力踩踏補回，這是波段大行情即時噴發的最即時籌碼足跡！
+    
+    **🛡️ 法人持股比例（Institutional Held %）的黃金關係**
+    * **【50% ~ 80%】 機構黃金護盤區：** 頂級核心資產的標準結構。代表「聰明錢」深度護盤，下殺到鐵板區時會有強大演算法買盤沒收。
+    * **【高於 90%】 流動性枯竭警訊：** 機構幾乎把股票買光了，缺乏新主力抬轎，且一旦大基金換股出清，極易引發連環踩踏車禍。
+    * **【低於 30%】 散戶市/高投機標的：** 籌碼極度分散，風吹草動大家就會互相踩踏，波動劇烈。
     """)
