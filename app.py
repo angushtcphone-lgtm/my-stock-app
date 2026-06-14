@@ -19,6 +19,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
+# 💡 台股中文自訂對應字典 (未來若有新增核心台股，可在此處無限追加中文對齊)
+TW_ZH_NAMES = {
+    "2330.TW": "台積電",
+    "2454.TW": "聯發科",
+    "2317.TW": "鴻海",
+    "2308.TW": "台達電",
+    "2382.TW": "廣達",
+    "2603.TW": "長榮"
+}
+
 # ==============================================================================
 # 🕹️ 【頂層設計】全球市場切換中樞
 # ==============================================================================
@@ -34,7 +44,7 @@ else:
     default_tickers = "2330, 2454, 2317"
     currency_sign = "NT$"
 
-st.caption(f"即時數據源：Yahoo Finance | 2026 版本：持倉/觀察雙軌切分 + 4標的全自動分頁阻斷器")
+st.caption(f"即時數據源：Yahoo Finance & TradingView Link | 2026 版本：TradingView直達 + 中文化台股雷達")
 
 # ==============================================================================
 # 🎛️ 【互動式左側控制艙】無代碼圖形化操作
@@ -105,6 +115,7 @@ for ticker in active_tickers:
 # ==============================================================================
 holding_matrix = {}
 watching_matrix = {}
+tv_buttons_links = [] # 用來存 TradingView 的按鈕網址資訊
 
 for ticker in active_tickers:
     if ticker not in user_configs:
@@ -121,9 +132,23 @@ for ticker in active_tickers:
         auto_low = df['Low'].tail(120).min()
         auto_high = df['High'].tail(120).max()
         
+        # 👑 【核心優化點 1】：台股智慧中文化名稱 + 建立 TradingView 精準 URL 路由
         info = stock.info
-        company_name = info.get('shortName', info.get('longName', ticker))
-        display_key = f"{ticker.replace('.TW', '')}\n({company_name})"
+        if market_choice == "🇹🇼 台股戰略中心":
+            # 優先從中文化字典拿名字，拿不到再抓英文
+            company_name = TW_ZH_NAMES.get(ticker, info.get('shortName', ticker))
+            clean_code = ticker.replace(".TW", "")
+            display_key = f"{clean_code}\n({company_name})"
+            # TradingView 台股圖表語法：TWSE:2330
+            tv_url = f"https://www.tradingview.com/chart/?symbol=TWSE:{clean_code}"
+        else:
+            company_name = info.get('shortName', info.get('longName', ticker))
+            display_key = f"{ticker}\n({company_name})"
+            # TradingView 美股圖表語法
+            tv_url = f"https://www.tradingview.com/chart/?symbol={ticker}"
+            
+        # 將按鈕名稱與網址打包儲存
+        tv_buttons_links.append({"label": f"📈 {company_name} K線", "url": tv_url})
         
         # 3MA / 20MA 量能加速度
         df['Vol_MA3'] = df['Volume'].rolling(window=3).mean()
@@ -241,7 +266,19 @@ for ticker in active_tickers:
         st.error(f"無法自動載入 {ticker} 數據: {e}")
 
 # ==============================================================================
-# 📦 【核心優化點】：持倉與觀察各自進行 4 標的全自動分頁阻斷，雙軌並進！
+# 👑 【核心優化點 2】：TradingView 一鍵直達 K 線按鈕面板面板
+# ==============================================================================
+if tv_buttons_links:
+    st.subheader("📊 快速連結：TradingView 專業 K 線圖直達")
+    # 動態利用 st.columns 讓按鈕橫向一字排開
+    cols_btn = st.columns(len(tv_buttons_links))
+    for idx, btn_info in enumerate(tv_buttons_links):
+        with cols_btn[idx]:
+            st.link_button(btn_info["label"], btn_info["url"], use_container_width=True)
+    st.markdown("")
+
+# ==============================================================================
+# 📦 【雙軌流全自動分頁阻斷器】
 # ==============================================================================
 holding_keys = list(holding_matrix.keys())
 holding_chunks = [holding_keys[i:i + 4] for i in range(0, len(holding_keys), 4)]
@@ -249,7 +286,6 @@ holding_chunks = [holding_keys[i:i + 4] for i in range(0, len(holding_keys), 4)]
 watching_keys = list(watching_matrix.keys())
 watching_chunks = [watching_keys[i:i + 4] for i in range(0, len(watching_keys), 4)]
 
-# 全自動動態生成最頂層的精美頁籤清單
 tab_titles = []
 for i in range(len(holding_chunks)):
     tab_titles.append(f"🛡️ 核心主力持倉 (組 {i+1})")
@@ -260,14 +296,12 @@ if tab_titles:
     ui_tabs = st.tabs(tab_titles)
     current_tab_idx = 0
     
-    # 渲染持倉分頁 (每頁嚴格死守最多4個欄位)
     for i, chunk in enumerate(holding_chunks):
         with ui_tabs[current_tab_idx]:
             chunk_dict = {k: holding_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict), use_container_width=True)
         current_tab_idx += 1
         
-    # 渲染觀察分頁 (每頁嚴格死守最多4個欄位)
     for i, chunk in enumerate(watching_chunks):
         with ui_tabs[current_tab_idx]:
             chunk_dict = {k: watching_matrix[k] for k in chunk}
@@ -276,7 +310,7 @@ if tab_titles:
 else:
     st.info("💡 請在左側控制艙輸入股票代碼以啟動全球策略矩陣。")
 
-# 智慧說明分頁
+# 智慧指引
 st.markdown("---")
 st.subheader("💡 機構級數據決策智慧指引（實戰判讀中樞）")
 tab1, tab2, tab3 = st.tabs(["📊 本益比河流估值心法", "🩳 軋空籌碼心法", "⚡ 量能趨勢與法人比例"])
