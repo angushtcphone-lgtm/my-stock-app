@@ -43,7 +43,7 @@ TW_ZH_NAMES = {
     "3037.TW": "欣興", "3711.TW": "日月光"
 }
 
-# 絕對鐵律縱向排版順序
+# 絕對鐵律縱向排版順序（還原最純淨指標列）
 ROW_ORDER = [
     "📈 目前現價", "💵 我的持倉成本", "💰 即時持倉損益 %", "🔮 戰略目標價",
     "🟢 河流圖：價值打折區", "🟡 河流圖：基礎合理價", "🔴 河流圖：動能天花板",
@@ -151,7 +151,7 @@ for ticker in active_tickers:
     
     try:
         stock = yf.Ticker(ticker)
-        # 👑 【終極對齊金鑰】：加入 auto_adjust=True，強制全自動進行除權息價格還原，100% 同步 TradingView！
+        # ⚡ 採用除權息自動還原數據
         df = stock.history(period="6mo", auto_adjust=True)
         if df.empty: continue
             
@@ -188,18 +188,18 @@ for ticker in active_tickers:
             river_discount = f_eps * low_pe
             river_fair = f_eps * norm_pe
             river_max = f_eps * high_pe
-            dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else df['Low'].tail(120).min()
+            # 費氏計算專用低點定錨 (核心預設標的)
+            auto_low_fib = df['Low'].tail(120).min()
         else:
-            # 👑 【飆股去噪自適應定錨】：以除權息還原後的 60MA 季線作為底層共識合理中樞
+            # 飆股自適應河流模型 (欣興、華邦電)
             df['MA60'] = df['Close'].rolling(window=60).mean()
             current_ma60 = df['MA60'].iloc[-1] if not pd.isna(df['MA60'].iloc[-1]) else current_price
-            
             river_fair = current_ma60
-            river_discount = current_ma60 * 0.85  # 季線支撐打85折作為甜蜜抄底點
-            
-            recent_high = df['Close'].tail(30).quantile(0.95)
-            river_max = recent_high * 1.15
-            dynamic_low = df['Low'].iloc[-1] if ignition_signal == "🔥 主力爆量點火" else df['Close'].tail(30).quantile(0.05)
+            river_discount = current_ma60 * 0.85
+            river_max = df['Close'].tail(30).quantile(0.95) * 1.15
+            # 費氏計算專用低點定錨 (自選飆股) ── 
+            # 👑 【終極修正點】：費氏低點強制鎖定 120 天歷史還原最低點 (欣興即為 204.5)，徹底斷開 30 天短線低點的干擾！
+            auto_low_fib = df['Low'].tail(120).min()
 
         display_discount = f"{currency_sign}{river_discount:.2f}"
         display_fair = f"{currency_sign}{river_fair:.2f}"
@@ -208,11 +208,17 @@ for ticker in active_tickers:
         suffix_table = " (Sell)" if cfg['type'] == "SELL_TARGET" else (" (Buy)" if cfg['type'] == "BUY_TARGET" else " (Hold)")
         display_pred_target = f"{currency_sign}{cfg['target']:.2f}{suffix_table}" if cfg['target'] > 0 else "未設定"
 
-        # 👑 【費波南希神對齊】：此時的 auto_high_fib 抓到的就是跟 TradingView 完全相同的還原頂點 1130 元！
+        # 👑 【數學神復歸】：此時的高點與低點，100% 採用 120 天全還原數值 (1130 與 204.5)，算出來的 50% 絕對是 667.25！
         auto_high_fib = df['High'].tail(120).max()
-        diff = auto_high_fib - dynamic_low
-        ext_2618, ext_1618, ext_1382 = dynamic_low + 2.618 * diff, dynamic_low + 1.618 * diff, dynamic_low + 1.382 * diff
-        fib_382, fib_500, fib_618  = auto_high_fib - 0.382 * diff, auto_high_fib - 0.5 * diff, auto_high_fib - 0.618 * diff
+        diff = auto_high_fib - auto_low_fib
+        
+        ext_2618 = auto_low_fib + 2.618 * diff
+        ext_1618 = auto_low_fib + 1.618 * diff
+        ext_1382 = auto_low_fib + 1.382 * diff
+        
+        fib_382  = auto_high_fib - 0.382 * diff
+        fib_500  = auto_high_fib - 0.5 * diff
+        fib_618  = auto_high_fib - 0.618 * diff
         
         cost_display = f"{currency_sign}{cfg['cost']:.2f}" if cfg['cost'] else "❌ 尚未建倉"
         if cfg['cost'] and cfg['cost'] > 0:
