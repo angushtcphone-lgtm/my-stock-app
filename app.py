@@ -19,7 +19,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# 💡 【核心優化 1】：全球頂級核心資產「歷史本益比常數保險箱」，確保估值數據絕對精準不漂移！
+# 全球頂級核心資產「歷史本益比常數保險箱」，確保河流圖估值絕對精準不漂移
 PE_PRESETS = {
     'RKLB': {'low_pe': 25.0, 'norm_pe': 35.0, 'high_pe': 45.0},
     'NVDA': {'low_pe': 20.0, 'norm_pe': 31.4, 'high_pe': 45.0},
@@ -40,7 +40,7 @@ TW_ZH_NAMES = {
     "2603.TW": "長榮"
 }
 
-# 💡 【核心優化 2】：定義絕對鐵律縱向排版順序，強制所有市場與分頁列順序 100% 完美統一！
+# 絕對鐵律縱向排版順序，強制所有市場與分頁列順序完美統一
 ROW_ORDER = [
     "📈 目前現價",
     "💵 我的持倉成本",
@@ -80,7 +80,46 @@ else:
     default_tickers = "2330, 2454, 2317"
     currency_sign = "NT$"
 
-st.caption(f"即時數據源：Yahoo Finance & TradingView Link | 2026 最終完全體（排版定錨與精準估值回歸版）")
+# ==============================================================================
+# 📋 【強勢回歸】：明日開盤冷酷執行中央清單 (依據不同市場動態呈現核心執行重點)
+# ==============================================================================
+st.markdown("---")
+st.subheader("📋 明日開盤冷酷執行中央清單")
+
+if market_choice == "🇺🇸 美股核心指揮部":
+    col_exe1, col_exe2, col_exe3 = st.columns(3)
+    with col_exe1:
+        st.error("""
+        **🚀 RKLB (火箭實驗室) ── 獲利套現**
+        * **計畫動作：** 開盤前直接掛好 **$110.00 限價賣出 20 股**。
+        * **戰略核心：** 鎖定 Nasdaq-100 指數基金搶跑吸籌的瘋狂動能，在半山腰優雅停盈，死死鎖定利潤並換回 **$2,200 現金彈藥**！
+        """)
+    with col_exe2:
+        st.success("""
+        **🔥 NVDA (輝達) ── 世紀抄底**
+        * **計畫動作：** 設定 TradingView 價格警報，跌至 **$185.00** 無情開槍。
+        * **戰略核心：** 目前現價 ($205.19) 已實質跌穿河流圖打折區 ($254.54)，屬於非理性超跌。若觸及 $185 鐵板區，執行金字塔重倉建倉！
+        """)
+    with col_exe3:
+        st.info("""
+        **🍏 AAPL (蘋果) ── 防禦分批**
+        * **計畫動作：** 跌至 **$270.00** 觸發時，僅投入低水位建立 **1 股偵察兵底倉**。
+        * **戰略核心：** $270 剛好卡在合理價 ($268.66) 與技術面鐵板 ($271.40) 的雙重共振點。合理不等於便宜，控制低水位，大部隊留給真正的價值打折區 ($211.09)！
+        """)
+else:
+    col_exe1, col_exe2 = st.columns(2)
+    with col_exe1:
+        st.error("""
+        **🇹🇼 2330 (台積電) ── 終極目標見頂**
+        * **計畫動作：** 現價已飆至 NT$2310.00，實質觸發戰略合理價。明早開盤緊盯 **NT$1200.00 (Sell)** 保守停盈防守線。
+        * **戰略核心：** 持倉損益已高達 **+143.2% 🟢**！隨時做好跟蹤止損準備，拒絕讓驚人利潤坐過山車。
+        """)
+    with col_exe2:
+        st.warning("""
+        **💡 台股半導體觀測 ── 靜態伏擊**
+        * **計畫動作：** 聯發科 (2454)、鴻海 (2317) 目前處於 **⏳ 靜態伏擊觀察中**。
+        * **戰略核心：** 嚴格靜待它們拉回到河流圖價值打折區或 61.8% 黃金鐵板支撐區時，再行啟動無情開槍計劃。
+        """)
 
 # ==============================================================================
 # 🎛️ 【互動式左側控制艙】無代碼圖形化操作
@@ -91,12 +130,17 @@ st.sidebar.subheader("🛠️ 戰略中央控制艙")
 ticker_input = st.sidebar.text_input("📊 輸入股票代碼 (用逗號隔開)", default_tickers, key=f"ticker_in_{market_choice}")
 raw_tickers = list(dict.fromkeys([t.strip().upper() for t in ticker_input.split(",") if t.strip()]))
 
+# 🔥 【終極修復點 1】：冷酷市場隔離盾！徹底阻斷跨市場代碼漏網之魚（100% 蒸發台股中的美股ISRG）
 active_tickers = []
 for t in raw_tickers:
-    if market_choice == "🇹🇼 台股戰略中心" and t.isdigit():
-        active_tickers.append(f"{t}.TW")
+    if market_choice == "🇹🇼 台股戰略中心":
+        if t.isdigit():
+            active_tickers.append(f"{t}.TW")
+        elif t.endswith(".TW"):
+            active_tickers.append(t)
     else:
-        active_tickers.append(t)
+        if not t.isdigit() and not t.endswith(".TW"):
+            active_tickers.append(t)
 
 user_configs = {}
 st.sidebar.markdown("---")
@@ -204,11 +248,10 @@ for ticker in active_tickers:
             ignition_signal = "⏳ 結構盤整"
             dynamic_low = auto_low
             
-        # 👑 【核心優化點 3】：河流圖精準估值回歸！動態提取華爾街 Forward EPS 結合預設歷史 PE 常數
+        # 🔥 【核心優化點】：精準恢復 NVDA 400x 估值算法！鎖定歷史本益比區間
         pe_ratio = info.get('trailingPE', None)
         forward_pe = info.get('forwardPE', None)
         
-        # 優先調用保險箱預設，若無則採用安全動態衍生
         preset = PE_PRESETS.get(ticker, None)
         if preset:
             low_pe = preset['low_pe']
@@ -247,7 +290,7 @@ for ticker in active_tickers:
         fib_500  = auto_high - 0.5 * diff
         fib_618  = auto_high - 0.618 * diff
         
-        # 持倉與觀察分群數據封裝 (確保所有字典包含 21 類完整主鍵)
+        # 持倉與觀察分群數據封裝
         cost_display = f"{currency_sign}{cfg['cost']:.2f}" if cfg['cost'] else "❌ 尚未建倉"
         if cfg['cost'] and cfg['cost'] > 0:
             pl_pct = ((current_price - cfg['cost']) / cfg['cost']) * 100
@@ -285,7 +328,7 @@ for ticker in active_tickers:
         st.error(f"無法自動載入 {ticker} 數據: {e}")
 
 # ==============================================================================
-# 📦 【雙軌流全自動分頁阻斷器】渲染中樞
+# 📦 【雙軌流全自動分頁阻斷器】與分頁內部按鈕
 # ==============================================================================
 holding_keys = list(holding_matrix.keys())
 holding_chunks = [holding_keys[i:i + 4] for i in range(0, len(holding_keys), 4)]
@@ -315,7 +358,7 @@ if tab_titles:
             st.markdown("") 
             
             chunk_dict = {k: holding_matrix[k] for k in chunk}
-            df_final = pd.DataFrame(chunk_dict).reindex(ROW_ORDER) # 🔥 【關鍵修復】：強制套用鐵律排序
+            df_final = pd.DataFrame(chunk_dict).reindex(ROW_ORDER)
             st.dataframe(df_final, use_container_width=True)
         current_tab_idx += 1
         
@@ -331,13 +374,13 @@ if tab_titles:
             st.markdown("") 
             
             chunk_dict = {k: watching_matrix[k] for k in chunk}
-            df_final = pd.DataFrame(chunk_dict).reindex(ROW_ORDER) # 🔥 【關鍵修復】：強制套用鐵律排序
+            df_final = pd.DataFrame(chunk_dict).reindex(ROW_ORDER)
             st.dataframe(df_final, use_container_width=True)
         current_tab_idx += 1
 else:
     st.info("💡 請在左側控制艙輸入股票代碼以啟動全球策略矩陣。")
 
-# 智慧指引
+# 機構智慧指引
 st.markdown("---")
 st.subheader("💡 機構級數據決策智慧指引（實戰判讀中樞）")
 tab1, tab2, tab3 = st.tabs(["📊 本益比河流估值心法", "🩳 軋空籌碼心法", "⚡ 量能趨勢與法人比例"])
