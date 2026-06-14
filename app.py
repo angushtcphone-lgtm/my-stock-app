@@ -115,7 +115,7 @@ else:
     currency_sign = "NT$"
 
 # ==============================================================================
-# 📋 【強勢重塑】：明日開盤冷酷執行中央清單 (全面採用單引號字串拼接，100% 免疫語法錯誤)
+# 📋 【強勢重塑】：明日開盤冷酷執行中央清單 (採用單引號串接，100% 免疫語法對齊錯誤)
 # ==============================================================================
 st.markdown("---")
 st.subheader("📋 明日開盤冷酷執行中央清單")
@@ -308,4 +308,158 @@ for ticker in active_tickers:
         
         preset = PE_PRESETS.get(ticker, None)
         if preset:
-            low_pe
+            low_pe = preset['low_pe']
+            norm_pe = preset['norm_pe']
+            high_pe = preset['high_pe']
+        else:
+            base_pe = pe_ratio if (pe_ratio and pe_ratio > 0) else (forward_pe if forward_pe else 30.0)
+            low_mult, norm_mult, high_mult = (0.65, 1.0, 1.4) if market_choice == "🇺🇸 美股核心指揮部" else (0.85, 1.0, 1.2)
+            low_pe = base_pe * low_mult
+            norm_pe = base_pe * norm_mult
+            high_pe = base_pe * high_mult
+            
+        if forward_pe and forward_pe > 0:
+            forward_eps = current_price / forward_pe
+            river_discount = forward_eps * low_pe
+            river_fair = forward_eps * norm_pe
+            river_max = forward_eps * high_pe
+            
+            display_discount = f"{currency_sign}{river_discount:.2f}"
+            display_fair = f"{currency_sign}{river_fair:.2f}"
+            display_max = f"{currency_sign}{river_max:.2f}"
+        else:
+            display_discount = "獲利等待/築底期"
+            display_fair = f"{currency_sign}{auto_high:.2f}"
+            display_max = f"{currency_sign}{auto_high * 1.382:.2f}"
+
+        suffix_table = " (Sell)" if cfg['type'] == "SELL_TARGET" else (" (Buy)" if cfg['type'] == "BUY_TARGET" else " (Hold)")
+        display_pred_target = f"{currency_sign}{cfg['target']:.2f}{suffix_table}" if cfg['target'] > 0 else "未設定"
+
+        # 費波南希完整防線自動運算
+        diff = auto_high - dynamic_low
+        ext_2618 = dynamic_low + 2.618 * diff
+        ext_1618 = dynamic_low + 1.618 * diff
+        ext_1382 = dynamic_low + 1.382 * diff
+        fib_382  = auto_high - 0.382 * diff
+        fib_500  = auto_high - 0.5 * diff
+        fib_618  = auto_high - 0.618 * diff
+        
+        # 持倉與觀察分群數據封裝
+        cost_display = f"{currency_sign}{cfg['cost']:.2f}" if cfg['cost'] else "❌ 尚未建倉"
+        if cfg['cost'] and cfg['cost'] > 0:
+            pl_pct = ((current_price - cfg['cost']) / cfg['cost']) * 100
+            pl_display = f"+{pl_pct:.1f}% 🟢" if pl_pct >= 0 else f"{pl_pct:.1f}% 🔴"
+            action_signal = "🔴 💰 達到計畫出清點！" if cfg['type'] == 'SELL_TARGET' and current_price >= cfg['target'] else "🟡 ⏳ 核心持股續抱中"
+        else:
+            pl_display = "❌ 尚未持倉"
+            action_signal = "🟢 🚨 進入甜蜜建倉區！" if cfg['type'] == 'BUY_TARGET' and cfg['target'] > 0 and current_price <= cfg['target'] else "🟡 ⏳ 靜態伏擊觀察中"
+            
+        target_map = holding_matrix if cfg['cost'] else watching_matrix
+        target_map[display_key] = {
+            "📈 目前現價": f"{currency_sign}{current_price:.2f}",
+            "💵 我的持倉成本": cost_display,
+            "💰 即時持倉損益 %": pl_display,
+            "🔮 戰略目標價": display_pred_target,
+            "🟢 河流圖：價值打折區": display_discount,
+            "🟡 河流圖：基礎合理價": display_fair,
+            "🔴 河流圖：動能天花板": display_max,
+            "🛠️ 戰略部署規劃": cfg['action_desc'],
+            "🔔 建議操作狀態": action_signal,
+            "💥 261.8% 終極阻力天花板": f"{currency_sign}{ext_2618:.2f}",
+            "💥 161.8% 終極停盈點": f"{currency_sign}{ext_1618:.2f}",
+            "💥 138.2% 獲利減倉點": f"{currency_sign}{ext_1382:.2f}",
+            "🟢 38.2% 波段初步壓力": f"{currency_sign}{fib_382:.2f}",
+            "🟢 50.0% 關鍵分水嶺": f"{currency_sign}{fib_500:.2f}",
+            "🟢 61.8% 黃金鐵板支撐": f"{currency_sign}{fib_618:.2f}",
+            "💵 實際 PE": f"{pe_ratio:.1f}x" if pe_ratio else "成長中",
+            "🔮 預期 PE": f"{forward_pe:.1f}x" if forward_pe else "無",
+            "🛡️ 法人持股比例": f"{info.get('institutionalPercentHeld', 0)*100:.1f}%",
+            "🩳 空頭放空比": f"{info.get('shortPercentOfFloat', 0)*100:.1f}%",
+            "⚡ 法人資金動態趨勢": trend_signal,
+            "🚦 主力點火狀態": ignition_signal
+        }
+    except Exception as e:
+        st.error(f"無法自動載入 {ticker} 數據: {e}")
+
+# ==============================================================================
+# 📦 【雙軌流全自動分頁阻斷器】與分頁內部按鈕渲染
+# ==============================================================================
+holding_keys = list(holding_matrix.keys())
+holding_chunks = [holding_keys[i:i + 4] for i in range(0, len(holding_keys), 4)]
+
+watching_keys = list(watching_matrix.keys())
+watching_chunks = [watching_keys[i:i + 4] for i in range(0, len(watching_keys), 4)]
+
+tab_titles = []
+for i in range(len(holding_chunks)):
+    tab_titles.append(f"🛡️ 核心主力持倉 (組 {i+1})")
+for i in range(len(watching_chunks)):
+    tab_titles.append(f"⏳ 戰略觀察伏擊 (組 {i+1})")
+
+if tab_titles:
+    ui_tabs = st.tabs(tab_titles)
+    current_tab_idx = 0
+    
+    for i, chunk in enumerate(holding_chunks):
+        with ui_tabs[current_tab_idx]:
+            st.caption("📈 K線圖 (點擊直達 TradingView)")
+            cols_btn = st.columns(4)
+            for idx, display_key in enumerate(chunk):
+                if display_key in ticker_tv_info:
+                    with cols_btn[idx]:
+                        st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
+            st.markdown("") 
+            
+            chunk_dict = {k: holding_matrix[k] for k in chunk}
+            df_final = pd.DataFrame(chunk_dict).reindex(ROW_ORDER)
+            st.dataframe(df_final, use_container_width=True)
+        current_tab_idx += 1
+        
+    for i, chunk in enumerate(watching_chunks):
+        with ui_tabs[current_tab_idx]:
+            st.caption("📈 K線圖 (點擊直達 TradingView)")
+            cols_btn = st.columns(4)
+            for idx, display_key in enumerate(chunk):
+                if display_key in ticker_tv_info:
+                    with cols_btn[idx]:
+                        st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
+            st.markdown("") 
+            
+            chunk_dict = {k: watching_matrix[k] for k in chunk}
+            df_final = pd.DataFrame(chunk_dict).reindex(ROW_ORDER)
+            st.dataframe(df_final, use_container_width=True)
+        current_tab_idx += 1
+else:
+    st.info("💡 請在左側控制艙輸入股票代碼以啟動全球策略矩陣。")
+
+# 智慧指引
+st.markdown("---")
+st.subheader("💡 機構級數據決策智慧指引（實戰判讀中樞）")
+tab_gui1, tab_gui2, tab_gui3 = st.tabs(["📊 本益比河流估值心法", "🩳 軋空籌碼心法", "⚡ 量能趨勢與法人比例"])
+
+with tab_gui1:
+    st.info(
+        "📊 本益比河流圖（PE Band）多維度動態估值模型\n\n"
+        "* 🟢 價值打折區：大型法人的「終極撿便宜護盤防線」。\n"
+        "* 🟡 基礎合理價：企業在正常景氣循環下的集體共識合理中樞。\n"
+        "* 🔴 動能天花板：多頭情緒亢奮、估值極度吹泡泡的瘋狂極限區。"
+    )
+
+with tab_gui2:
+    st.warning(
+        "🔥 火山爆發型軋空（Short Squeeze）原理\n\n"
+        "* 【空頭放空比 > 10% 且 股價頑強不跌】 ➔ 進入波段強勢噴發潮：多頭持股切勿盲目賣出，應安心抱緊！"
+    )
+
+with tab_gui3:
+    st.success(
+        "🛡️ 法人持股比例（Institutional Held %）的黃金關係\n\n"
+        "* 【50% ~ 80%】 機構黃金護盤區：頂級核心資產的標準結構。代表「聰明錢」深度護盤。"
+    )
+
+# ==============================================================================
+# 🔄 【瀏覽器無感刷新】利用 HTML Meta 標籤重整，100% 根除走私與殘留
+# ==============================================================================
+st.markdown("---")
+st.components.v1.html('<meta http-equiv="refresh" content="60">', height=0)
+st.caption("🔄 雷達運作中：系統已切換為「瀏覽器非阻塞型 60 秒定時刷新機制」，全功能安全對齊最新行情...")
