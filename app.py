@@ -44,7 +44,7 @@ else:
     default_tickers = "2330, 2454, 2317"
     currency_sign = "NT$"
 
-st.caption(f"即時數據源：Yahoo Finance & TradingView Link | 2026 完全體版")
+st.caption(f"即時數據源：Yahoo Finance & TradingView Link | 2026 最終上下文感知版")
 
 # ==============================================================================
 # 🎛️ 【互動式左側控制艙】無代碼圖形化操作
@@ -115,7 +115,7 @@ for ticker in active_tickers:
 # ==============================================================================
 holding_matrix = {}
 watching_matrix = {}
-tv_buttons_links = [] 
+ticker_tv_info = {} # 🧠 升級：改用獨立字典儲存每檔股票的極簡按鈕資訊
 
 for ticker in active_tickers:
     if ticker not in user_configs:
@@ -132,30 +132,26 @@ for ticker in active_tickers:
         auto_low = df['Low'].tail(120).min()
         auto_high = df['High'].tail(120).max()
         
-        # 👑 【修復點 3】：按鈕名稱極簡化！美股用純代號（NVDA），台股用純中文（台積電）
         info = stock.info
         if market_choice == "🇹🇼 台股戰略中心":
             company_name = TW_ZH_NAMES.get(ticker, info.get('shortName', ticker))
             clean_code = ticker.replace(".TW", "")
             display_key = f"{clean_code}\n({company_name})"
             tv_url = f"https://www.tradingview.com/chart/?symbol=TWSE:{clean_code}"
-            # 台股按鈕文字：📈 台積電
-            btn_label = f"📈 {company_name}"
+            btn_label = f"📈 {company_name}" # 極簡名稱：台積電
         else:
             company_name = info.get('shortName', info.get('longName', ticker))
             display_key = f"{ticker}\n({company_name})"
             tv_url = f"https://www.tradingview.com/chart/?symbol={ticker}"
-            # 美股按鈕文字：📈 NVDA
-            btn_label = f"📈 {ticker}"
+            btn_label = f"📈 {ticker}" # 極簡名稱：NVDA
             
-        tv_buttons_links.append({"label": btn_label, "url": tv_url})
+        # 綁定按鈕資訊到 display_key 保險箱中
+        ticker_tv_info[display_key] = {"label": btn_label, "url": tv_url}
         
         # 3MA / 20MA 量能加速度
         df['Vol_MA3'] = df['Volume'].rolling(window=3).mean()
         df['Vol_MA20'] = df['Volume'].rolling(window=20).mean()
-        latest_ma3_vol = df['Vol_MA3'].iloc[-1]
-        latest_ma20_vol = df['Vol_MA20'].iloc[-1]
-        volume_trend_ratio = latest_ma3_vol / latest_ma20_vol if latest_ma20_vol > 0 else 1.0
+        volume_trend_ratio = df['Vol_MA3'].iloc[-1] / df['Vol_MA20'].iloc[-1] if df['Vol_MA20'].iloc[-1] > 0 else 1.0
         
         if volume_trend_ratio >= 1.2:
             trend_signal = f"🔥 資金狂飆 ({volume_trend_ratio:.2f}倍速)"
@@ -266,21 +262,7 @@ for ticker in active_tickers:
         st.error(f"無法自動載入 {ticker} 數據: {e}")
 
 # ==============================================================================
-# 👑 【核心優化點 1 & 2】：極簡標題 + 全自動動態 Key 容器（完美蒸發幽靈按鈕）
-# ==============================================================================
-if tv_buttons_links:
-    st.subheader("📈 K線圖") # 優化點 1：標題完成極簡改裝
-    
-    # 優化點 2：利用動態關鍵字（Market+數量）強制驅逐瀏覽器 DOM 快取殘留，徹底解決灰色幽靈按鈕 Bug
-    with st.container(key=f"tv_box_{market_choice}_{len(tv_buttons_links)}"):
-        cols_btn = st.columns(len(tv_buttons_links))
-        for idx, btn_info in enumerate(tv_buttons_links):
-            with cols_btn[idx]:
-                st.link_button(btn_info["label"], btn_info["url"], use_container_width=True)
-    st.markdown("")
-
-# ==============================================================================
-# 📦 【雙軌流全自動分頁阻斷器】渲染
+# 📦 【雙軌流全自動分頁阻斷器】+ 【分頁內部動態按鈕定位】
 # ==============================================================================
 holding_keys = list(holding_matrix.keys())
 holding_chunks = [holding_keys[i:i + 4] for i in range(0, len(holding_keys), 4)]
@@ -298,14 +280,36 @@ if tab_titles:
     ui_tabs = st.tabs(tab_titles)
     current_tab_idx = 0
     
+    # 1. 渲染持倉分頁
     for i, chunk in enumerate(holding_chunks):
         with ui_tabs[current_tab_idx]:
+            # 🔥 【核心優化點 1 & 2】：標題極簡化，且按鈕精準跟隨分頁！死死鎖定4欄等寬
+            st.caption("📈 K線圖 (點擊直達 TradingView)")
+            cols_btn = st.columns(4)
+            for idx, display_key in enumerate(chunk):
+                if display_key in ticker_tv_info:
+                    with cols_btn[idx]:
+                        st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
+            st.markdown("") # 留空美化
+            
+            # 渲染數據表格
             chunk_dict = {k: holding_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict), use_container_width=True)
         current_tab_idx += 1
         
+    # 2. 渲染觀察分頁
     for i, chunk in enumerate(watching_chunks):
         with ui_tabs[current_tab_idx]:
+            # 🔥 【核心優化點 1 & 2】：標題極簡化，且按鈕精準跟隨分頁！死死鎖定4欄等寬
+            st.caption("📈 K線圖 (點擊直達 TradingView)")
+            cols_btn = st.columns(4)
+            for idx, display_key in enumerate(chunk):
+                if display_key in ticker_tv_info:
+                    with cols_btn[idx]:
+                        st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
+            st.markdown("") # 留空美化
+            
+            # 渲染數據表格
             chunk_dict = {k: watching_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict), use_container_width=True)
         current_tab_idx += 1
@@ -337,7 +341,7 @@ with tab3:
     **🛡️ 法人持股比例（Institutional Held %）的黃金關係**
     * **【50% ~ 80%】 機構黃金護盤區：** 頂級核心資產的標準結構。代表「聰明錢」深度護盤，下殺到鐵板區時會有強大演算法買盤沒收。
     * **【高於 90%】 流動性枯竭警訊：** 機構幾乎把股票買光了，缺乏新主力抬轎，且一旦大基金換股出清，極易引發連環踩踏車禍。
-    * **【低於 30%】 散戶市/高投機標的：** 籌碼極度分散，風吹草動大家就會互相踩踏，波動劇烈。
+    * **【低於 30%】 散戶市/高投機標的：** 籌碼極度分散，風吹角步大家就會互相踩踏，波動劇烈。
     """)
 
 # 60秒自動輪詢刷新
