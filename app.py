@@ -160,15 +160,20 @@ for ticker in active_tickers:
             company_name = TW_ZH_NAMES.get(ticker, info.get('shortName', ticker))
             clean_code = ticker.replace(".TW", "")
             display_key = f"{clean_code}\n({company_name})"
-            tv_url = f"https://www.tradingview.com/chart/?symbol=TWSE:{clean_code}"
-            btn_label = f"📈 {company_name}" 
+            
+            # 👑 【核心優化點 1】：為台股客製化建立「三大合一」官方直達按鈕清單
+            ticker_tv_info[display_key] = [
+                {"label": f"📈 {company_name} K線", "url": f"https://www.tradingview.com/chart/?symbol=TWSE:{clean_code}"},
+                {"label": f"🏛️ 法人持股比", "url": f"https://www.twse.com.tw/zh/trading/fund/mi-qfiis.html"},
+                {"label": f"📉 融資融券比", "url": f"https://www.twse.com.tw/zh/margin/mi-margn.html"}
+            ]
         else:
             company_name = info.get('shortName', info.get('longName', ticker))
             display_key = f"{ticker}\n({company_name})"
-            tv_url = f"https://www.tradingview.com/chart/?symbol={ticker}"
-            btn_label = f"📈 {ticker}" 
-            
-        ticker_tv_info[display_key] = {"label": btn_label, "url": tv_url}
+            # 美股維持單一 K 線直達
+            ticker_tv_info[display_key] = [
+                {"label": f"📈 {ticker} K線", "url": f"https://www.tradingview.com/chart/?symbol={ticker}"}
+            ]
         
         df['Vol_MA3'] = df['Volume'].rolling(window=3).mean()
         df['Vol_MA20'] = df['Volume'].rolling(window=20).mean()
@@ -206,8 +211,9 @@ for ticker in active_tickers:
         ext_2618, ext_1618, ext_1382 = dynamic_low + 2.618 * diff, dynamic_low + 1.618 * diff, dynamic_low + 1.382 * diff
         fib_382, fib_500, fib_618  = auto_high - 0.382 * diff, auto_high - 0.5 * diff, auto_high - 0.618 * diff
         
+        # 👑 【核心優化點 2】：台美股指標欄位智慧對齊分流
         if market_choice == "🇹🇼 台股戰略中心":
-            inst_held_display, short_display = "請查證交所 (三大法人)", "請查證交所 (券資比)"
+            inst_held_display, short_display = "請看上方官方直達連結", "請看上方官方直達連結"
         else:
             inst_held = info.get('institutionalPercentHeld', info.get('heldPercentInstitutions', 0))
             inst_held_display = f"{inst_held * 100:.1f}%" if inst_held and inst_held > 0 else "74.6%"
@@ -238,7 +244,7 @@ for ticker in active_tickers:
         st.error(f"無法載入 {ticker} 數據: {e}")
 
 # ==============================================================================
-# 📦 【動態分頁引擎】
+# 📦 【雙軌流全自動分頁阻斷器】與分頁內部按鈕渲染
 # ==============================================================================
 holding_keys = list(holding_matrix.keys())
 holding_chunks = [holding_keys[i:i + 4] for i in range(0, len(holding_keys), 4)]
@@ -256,11 +262,14 @@ if tab_titles:
     
     for i, chunk in enumerate(holding_chunks):
         with ui_tabs[current_tab_idx]:
-            st.caption("📈 K線圖 (點擊直達 TradingView)")
-            cols_btn = st.columns(4)
-            for idx, display_key in enumerate(chunk):
+            # 👑 【核心優化點 3】：動態生成分頁內部按鈕航線（台股自動展開三大按鈕）
+            st.caption("📈 快捷決策航線 (點擊直達官方數據核心)")
+            for display_key in chunk:
                 if display_key in ticker_tv_info:
-                    with cols_btn[idx]: st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
+                    links = ticker_tv_info[display_key]
+                    cols_btn = st.columns(len(links))
+                    for idx, link_info in enumerate(links):
+                        with cols_btn[idx]: st.link_button(link_info["label"], link_info["url"], use_container_width=True)
             st.markdown("") 
             chunk_dict = {k: holding_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict).reindex(ROW_ORDER), use_container_width=True)
@@ -268,11 +277,13 @@ if tab_titles:
         
     for i, chunk in enumerate(watching_chunks):
         with ui_tabs[current_tab_idx]:
-            st.caption("📈 K線圖 (點擊直達 TradingView)")
-            cols_btn = st.columns(4)
-            for idx, display_key in enumerate(chunk):
+            st.caption("📈 快捷決策航線 (點擊直達官方數據核心)")
+            for display_key in chunk:
                 if display_key in ticker_tv_info:
-                    with cols_btn[idx]: st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
+                    links = ticker_tv_info[display_key]
+                    cols_btn = st.columns(len(links))
+                    for idx, link_info in enumerate(links):
+                        with cols_btn[idx]: st.link_button(link_info["label"], link_info["url"], use_container_width=True)
             st.markdown("") 
             chunk_dict = {k: watching_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict).reindex(ROW_ORDER), use_container_width=True)
@@ -280,8 +291,20 @@ if tab_titles:
 else:
     st.info("💡 請在左側控制艙輸入股票代碼以啟動全球策略矩陣。")
 
+# 智慧指引
+st.markdown("---")
+st.subheader("💡 機構級數據決策智慧指引（實戰判讀中樞）")
+tab_gui1, tab_gui2, tab_gui3 = st.tabs(["📊 本益比河流估值心法", "🩳 軋空籌碼心法", "⚡ 量能趨勢與法人比例"])
+
+with tab_gui1:
+    st.info("📊 本益比河流圖多維度模型：🟢價值打折區為長線安全邊際；🟡基礎合理價為共識中樞；🔴動能天花板強烈建議分批停盈。")
+with tab_gui2:
+    st.warning("🔥 火山爆發型軋空：當空頭放空比 > 10% 且股價頑強不跌，將迫使空頭不計成本買回平倉，引發暴漲！")
+with tab_gui3:
+    st.success("🛡️ 法人持股比例：50%~80% 屬於法人深度護盤的核心資產，流動性健全且下殺時具備上演算法接盤護體。")
+
 # ==============================================================================
-# 🔄 【前端無感刷新】利用 HTML Meta 重新整理，100% 根除伺服器執行緒卡死
+# 🔄 【前端無感刷新】
 # ==============================================================================
 st.markdown("---")
 st.components.v1.html('<meta http-equiv="refresh" content="60">', height=0)
