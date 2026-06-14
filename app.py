@@ -44,7 +44,7 @@ else:
     default_tickers = "2330, 2454, 2317"
     currency_sign = "NT$"
 
-st.caption(f"即時數據源：Yahoo Finance & TradingView Link | 2026 最終上下文感知版")
+st.caption(f"即時數據源：Yahoo Finance & TradingView Link | 2026 完全防漏版")
 
 # ==============================================================================
 # 🎛️ 【互動式左側控制艙】無代碼圖形化操作
@@ -52,18 +52,27 @@ st.caption(f"即時數據源：Yahoo Finance & TradingView Link | 2026 最終上
 st.sidebar.markdown("---")
 st.sidebar.subheader("🛠️ 戰略中央控制艙")
 
-ticker_input = st.sidebar.text_input("📊 輸入股票代碼 (用逗號隔開)", default_tickers)
+# 🔥 【修復點 1】：為輸入框加入動態 key，換市場時強制清空暫存，徹底消滅跨市場殘留
+ticker_input = st.sidebar.text_input("📊 輸入股票代碼 (用逗號隔開)", default_tickers, key=f"ticker_in_{market_choice}")
 
 # 原始輸入清洗
 raw_tickers = list(dict.fromkeys([t.strip().upper() for t in ticker_input.split(",") if t.strip()]))
 
-# 台股免打 .TW 自動補齊機制
+# 🔥 【修復點 2】：嚴格市場隔離盾！防止美股代碼（如ISRG）在切換時意外走私到台股中心
 active_tickers = []
 for t in raw_tickers:
-    if market_choice == "🇹🇼 台股戰略中心" and t.isdigit():
-        active_tickers.append(f"{t}.TW")
+    is_pure_digit = t.isdigit()
+    is_tw_format = t.endswith(".TW")
+    
+    if market_choice == "🇹🇼 台股戰略中心":
+        if is_pure_digit:
+            active_tickers.append(f"{t}.TW")
+        elif is_tw_format:
+            active_tickers.append(t)
+        # 💡 如果在台股模式輸入美股代碼（如ISRG），直接無情過濾，不予執行！
     else:
-        active_tickers.append(t)
+        if not is_pure_digit and not is_tw_format:
+            active_tickers.append(t)
 
 user_configs = {}
 st.sidebar.markdown("---")
@@ -74,7 +83,7 @@ for ticker in active_tickers:
     with st.sidebar.expander(f"⚙️ {clean_label} 戰略配置規劃", expanded=False):
         
         is_default_hold = (ticker in ['RKLB', '2330.TW'])
-        has_pos = st.checkbox("我已持有此部位", value=is_default_hold, key=f"pos_{ticker}")
+        has_pos = st.checkbox("我已持有此部位", value=is_default_hold, key=f"pos_{market_choice}_{ticker}")
         
         if has_pos:
             if 'RKLB' in ticker:
@@ -83,12 +92,12 @@ for ticker in active_tickers:
                 default_cost = 950.0
             else:
                 default_cost = 0.0
-            cost = st.number_input(f"{clean_label} 持倉成本", value=default_cost, step=0.1, key=f"cost_in_{ticker}")
+            cost = st.number_input(f"{clean_label} 持倉成本", value=default_cost, step=0.1, key=f"cost_in_{market_choice}_{ticker}")
         else:
             cost = None
             
         action_type = st.selectbox(f"{clean_label} 目標類型", ["BUY_TARGET", "SELL_TARGET", "HOLD"], 
-                                    index=1 if ticker in ['RKLB', '2330.TW'] else 0, key=f"type_{ticker}")
+                                    index=1 if ticker in ['RKLB', '2330.TW'] else 0, key=f"type_{market_choice}_{ticker}")
         
         suffix = " (Sell)" if action_type == "SELL_TARGET" else (" (Buy)" if action_type == "BUY_TARGET" else " (Hold)")
         
@@ -99,9 +108,9 @@ for ticker in active_tickers:
         else:
             default_target = 0.0
             
-        target = st.number_input(f"{clean_label} 戰略目標價{suffix}", value=default_target, step=1.0, key=f"target_{ticker}")
+        target = st.number_input(f"{clean_label} 戰略目標價{suffix}", value=default_target, step=1.0, key=f"target_{market_choice}_{ticker}")
         default_desc = "限價單已準備，衝高獲利出清" if action_type == "SELL_TARGET" else "下殺至目標價附近執行金字塔建倉"
-        action_desc = st.text_input(f"{clean_label} 戰略部署規劃", value=default_desc, key=f"desc_{ticker}")
+        action_desc = st.text_input(f"{clean_label} 戰略部署規劃", value=default_desc, key=f"desc_{market_choice}_{ticker}")
         
         user_configs[ticker] = {
             'cost': cost,
@@ -115,7 +124,7 @@ for ticker in active_tickers:
 # ==============================================================================
 holding_matrix = {}
 watching_matrix = {}
-ticker_tv_info = {} # 🧠 升級：改用獨立字典儲存每檔股票的極簡按鈕資訊
+ticker_tv_info = {} 
 
 for ticker in active_tickers:
     if ticker not in user_configs:
@@ -138,14 +147,13 @@ for ticker in active_tickers:
             clean_code = ticker.replace(".TW", "")
             display_key = f"{clean_code}\n({company_name})"
             tv_url = f"https://www.tradingview.com/chart/?symbol=TWSE:{clean_code}"
-            btn_label = f"📈 {company_name}" # 極簡名稱：台積電
+            btn_label = f"📈 {company_name}" 
         else:
             company_name = info.get('shortName', info.get('longName', ticker))
             display_key = f"{ticker}\n({company_name})"
             tv_url = f"https://www.tradingview.com/chart/?symbol={ticker}"
-            btn_label = f"📈 {ticker}" # 極簡名稱：NVDA
+            btn_label = f"📈 {ticker}" 
             
-        # 綁定按鈕資訊到 display_key 保險箱中
         ticker_tv_info[display_key] = {"label": btn_label, "url": tv_url}
         
         # 3MA / 20MA 量能加速度
@@ -283,16 +291,14 @@ if tab_titles:
     # 1. 渲染持倉分頁
     for i, chunk in enumerate(holding_chunks):
         with ui_tabs[current_tab_idx]:
-            # 🔥 【核心優化點 1 & 2】：標題極簡化，且按鈕精準跟隨分頁！死死鎖定4欄等寬
             st.caption("📈 K線圖 (點擊直達 TradingView)")
             cols_btn = st.columns(4)
             for idx, display_key in enumerate(chunk):
                 if display_key in ticker_tv_info:
                     with cols_btn[idx]:
                         st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
-            st.markdown("") # 留空美化
+            st.markdown("") 
             
-            # 渲染數據表格
             chunk_dict = {k: holding_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict), use_container_width=True)
         current_tab_idx += 1
@@ -300,16 +306,14 @@ if tab_titles:
     # 2. 渲染觀察分頁
     for i, chunk in enumerate(watching_chunks):
         with ui_tabs[current_tab_idx]:
-            # 🔥 【核心優化點 1 & 2】：標題極簡化，且按鈕精準跟隨分頁！死死鎖定4欄等寬
             st.caption("📈 K線圖 (點擊直達 TradingView)")
             cols_btn = st.columns(4)
             for idx, display_key in enumerate(chunk):
                 if display_key in ticker_tv_info:
                     with cols_btn[idx]:
                         st.link_button(ticker_tv_info[display_key]["label"], ticker_tv_info[display_key]["url"], use_container_width=True)
-            st.markdown("") # 留空美化
+            st.markdown("") 
             
-            # 渲染數據表格
             chunk_dict = {k: watching_matrix[k] for k in chunk}
             st.dataframe(pd.DataFrame(chunk_dict), use_container_width=True)
         current_tab_idx += 1
