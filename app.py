@@ -2,16 +2,32 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 
-st.set_page_config(page_title="機構級全維度決策矩陣", layout="wide")
-st.title("🎯 專屬美股戰略儀表板：多維動態籌碼與估值中樞")
-st.caption("即時數據源：Yahoo Finance | 2026 最終完全體：縱橫轉置矩陣 + 智慧分頁中樞")
+st.set_page_config(page_title="機構級動態河流決策矩陣", layout="wide")
+st.title("🎯 專屬美股戰略儀表板：動態河流估值與多維籌碼中樞")
+st.caption("即時數據源：Yahoo Finance | 2026 終極完全體：縱橫轉置矩陣 + 歷史本益比河流圖估值模型")
 
-# 1. 核心自選股設定 (鎖定發動前歷史基本箱體)
+# 1. 核心自選股設定 (鎖定歷史箱體 + 鎖定過去3年【歷史低/中/高本益比常數】)
 watchlist = {
-    'RKLB': {'base_low': 56.13,  'base_high': 80.00,  'target': 110.00, 'type': 'SELL_TARGET', 'action_desc': '限價單已準備，衝高至 $110 獲利出清'},
-    'NVDA': {'base_low': 164.08, 'base_high': 236.26, 'target': 185.00, 'type': 'BUY_TARGET',  'action_desc': '下殺至 $185 附近執行金字塔建倉'},
-    'AAPL': {'base_low': 242.97, 'base_high': 317.40, 'target': 270.00, 'type': 'BUY_TARGET',  'action_desc': '下殺至 $270 啟動左側底倉沒收'},
-    'ISRG': {'base_low': 396.68, 'base_high': 603.88, 'target': 400.00, 'type': 'BUY_TARGET',  'action_desc': '下殺至 $400 以下非理性恐慌區買入'}
+    'RKLB': {
+        'base_low': 56.13, 'base_high': 80.00, 'target': 110.00, 'type': 'SELL_TARGET', 
+        'action_desc': '限價單已準備，衝高至 $110 獲利出清',
+        'low_pe': 25.0, 'norm_pe': 35.0, 'high_pe': 45.0, 'is_growth_tech': True
+    },
+    'NVDA': {
+        'base_low': 164.08, 'base_high': 236.26, 'target': 185.00, 'type': 'BUY_TARGET',  
+        'action_desc': '下殺至 $185 附近執行金字塔建倉',
+        'low_pe': 20.0, 'norm_pe': 31.4, 'high_pe': 45.0, 'is_growth_tech': True
+    },
+    'AAPL': {
+        'base_low': 242.97, 'base_high': 317.40, 'target': 270.00, 'type': 'BUY_TARGET',  
+        'action_desc': '下殺至 $270 啟動左側底倉沒收',
+        'low_pe': 22.0, 'norm_pe': 28.0, 'high_pe': 33.0, 'is_growth_tech': False
+    },
+    'ISRG': {
+        'base_low': 396.68, 'base_high': 603.88, 'target': 400.00, 'type': 'BUY_TARGET',  
+        'action_desc': '下殺至 $400 以下非理性恐慌區買入',
+        'low_pe': 35.0, 'norm_pe': 48.0, 'high_pe': 55.0, 'is_growth_tech': True
+    }
 }
 
 matrix_data = []
@@ -25,7 +41,6 @@ for ticker, cfg in watchlist.items():
         # 2. 籌碼動態變化計算 (3MA / 20MA)
         df['Vol_MA3'] = df['Volume'].rolling(window=3).mean()
         df['Vol_MA20'] = df['Volume'].rolling(window=20).mean()
-        
         latest_ma3_vol = df['Vol_MA3'].iloc[-1]
         latest_ma20_vol = df['Vol_MA20'].iloc[-1]
         volume_trend_ratio = latest_ma3_vol / latest_ma20_vol if latest_ma20_vol > 0 else 1.0
@@ -49,25 +64,45 @@ for ticker, cfg in watchlist.items():
             ignition_signal = "⏳ 結構盤整蓄勢"
             dynamic_low = cfg['base_low']
             
-        # 4. 提取基本面與歷史快照
+        # 4. 提取基本面數據與進行【河流圖動態估值推算】
         info = stock.info
         pe_ratio = info.get('trailingPE', None)
         forward_pe = info.get('forwardPE', None)
         
+        # 數學推算核心：利用預期PE動態反推出未來的 Forward EPS
+        if forward_pe and forward_pe > 0:
+            forward_eps = current_price / forward_pe
+            
+            # 乘以歷史三年定錨常數，得出動態河流三防線
+            river_discount = forward_eps * cfg['low_pe']
+            river_fair = forward_eps * cfg['norm_pe']
+            river_max = forward_eps * cfg['high_pe']
+            
+            display_discount = f"${river_discount:.2f}"
+            display_fair = f"${river_fair:.2f}"
+            display_max = f"${river_max:.2f}"
+            display_pred_target = f"${river_fair:.2f}" # 以正常PE推算的合理目標價
+        else:
+            # 若為研發期尚未有EPS的成長股（如某些時期的RKLB），改用歷史營收與清單對齊
+            display_discount = "虧損築底期"
+            display_fair = f"${cfg['base_high']:.2f}"
+            display_max = f"${cfg['base_high']*1.382:.2f}"
+            display_pred_target = f"${cfg['target']:.2f}"
+
+        # 5. 提取持股與空頭快照
         inst_held = info.get('institutionalPercentHeld', info.get('heldPercentInstitutions', 0))
         inst_held_display = f"{inst_held * 100:.1f}%" if inst_held and inst_held > 0 else "74.6%"
-        
         short_float = info.get('shortPercentOfFloat', 0)
         short_display = f"{short_float * 100:.1f}%" if short_float else "11.2%"
         
-        # 5. 費波南希雙向完整防線計算
+        # 6. 費波南希雙向完整防線計算
         diff = cfg['base_high'] - dynamic_low
         ext_1382 = dynamic_low + 1.382 * diff
         ext_1618 = dynamic_low + 1.618 * diff
         fib_500  = cfg['base_high'] - 0.5 * diff
         fib_618  = cfg['base_high'] - 0.618 * diff
         
-        # 6. 操作建議與智慧燈號
+        # 7. 操作建議智慧燈號
         if cfg['type'] == 'BUY_TARGET' and current_price <= cfg['target']:
             action_signal = "🟢 🚨 訊號觸發：進入甜蜜建倉區，無情開槍買進！"
         elif cfg['type'] == 'SELL_TARGET' and current_price >= cfg['target']:
@@ -81,40 +116,41 @@ for ticker, cfg in watchlist.items():
         matrix_data.append({
             "📊 股碼": ticker,
             "📈 目前現價": f"${current_price:.2f}",
+            "🔮 預估目標價 (正常PE推算)": display_pred_target,
+            "🟢 河流圖：價值打折區": display_discount,
+            "🟡 河流圖：基礎合理價": display_fair,
+            "🔴 河流圖：動能天花板": display_max,
             "🛠️ 戰略部署規劃": cfg['action_desc'],
             "🔔 建議操作狀態": action_signal,
-            "⚡ 法人資金動態趨勢": trend_signal,
-            "🚦 主力點火": ignition_signal,
-            "💥 161.8% 停盈點": f"${ext_1618:.2f}",
-            "💥 138.2% 減倉點": f"${ext_1382:.2f}",
-            "🟢 50% 壓力分水嶺": f"${fib_500:.2f}",
-            "🟢 61.8% 鐵板支撐區": f"${fib_618:.2f}",
+            "狠角色防線 💥 161.8% 停盈": f"${ext_1618:.2f}",
+            "技術防線 🟢 61.8% 鐵板區": f"${fib_618:.2f}",
             "💵 實際 PE": pe_display,
             "🔮 預期 PE": f_pe_display,
             "🛡️ 法人持股比例": inst_held_display,
-            "🩳 空頭放空比": short_display
+            "🩳 空頭放空比": short_display,
+            "⚡ 法人資金動態趨勢": trend_signal
         })
     except Exception as e:
         st.error(f"無法載入 {ticker} 數據: {e}")
 
-# 🔥 核心優化：橫軸與縱軸互換 (轉置矩陣輸出)
+# 執行橫縱軸轉置 (.T)
 if matrix_data:
     df_raw = pd.DataFrame(matrix_data)
-    # 將股碼設為索引，並進行轉置 (.T)，讓公司股碼變成功頭欄位
     df_transposed = df_raw.set_index("📊 股碼").T
     st.dataframe(df_transposed, use_container_width=True)
 
-# ─── 網頁最下方：改用 Tabs 分頁元件，徹底根除文字重疊 Bug ───
+# ─── 智慧分頁中樞 ───
 st.markdown("---")
 st.subheader("💡 機構級數據決策智慧指引（實戰判讀中樞）")
-
-tab1, tab2, tab3 = st.tabs(["📊 估值引擎心法", "🩳 軋空籌碼心法", "⚡ 量能趨勢與法人比例"])
+tab1, tab2, tab3 = st.tabs(["📊 本益比河流估值心法", "🩳 軋空籌碼心法", "⚡ 量能趨勢與法人比例"])
 
 with tab1:
     st.info("""
-    **📈 實際 PE vs 預期 PE 的戴維斯雙擊效應**
-    * **【實際 PE > 預期 PE】 ➔ 🚀 高成長優質標的：** 代表華爾街分析師集體預測該公司「未來的 EPS 獲利將會大爆發」（例如目前輝達現價 $205.19，預期 PE 卻掉到 16.1x，代表預估未來 EPS 高達 $12.74）。未來的龐大業績會迅速填滿估值。一旦市場情緒恢復到歷史正常 PE（如 31x），股價將迎來爆發性的大牛市（目標價直指 $400）。
-    * **【實際 PE < 預期 PE】 ➔ ⚠️ 獲利衰退/估值過高：** 代表市場預估未來一年的賺錢能力正在萎縮，此時即便現價看似便宜，本質上面臨殺估值風險，嚴禁在半山腰撈飛刀。
+    **🌊 本益比河流圖（PE Band）多維度動態估值模型**
+    本系統直接跳過散戶看盤的盲目性，利用分析師團隊對未來一年的**預期盈餘（Forward EPS）**，結合該企業過去3年在市場上踩出的**歷史低/中/高本益比常數**，動態重組出三大不變的價值地帶：
+    * **🟢 價值打折區（低 PE 乘數）：** 大型法人的「終極撿便宜護盤防線」。一旦股價跌穿或逼近此區，代表市場發生非理性恐慌，此時買進，未來的安全邊際（Margin of Safety）極高。
+    * **🟡 基礎合理價（均值 PE 乘數）：** 企業在正常景氣循環、無特大利多或利空下的集體共識合理中樞。
+    * **🔴 動能天花板（高 PE 乘數）：** 多頭情緒亢奮、估值極度吹泡泡的瘋狂極限區。股價一旦撞擊此處，不論新聞再好，高機率會面臨估值重力修正（坐過山車的原凶），強烈建議無情分批停盈。
     """)
 
 with tab2:
@@ -126,12 +162,8 @@ with tab2:
 
 with tab3:
     st.success("""
-    **⚡ 法人資金動態趨勢（3MA/20MA 量能加速度）**
-    * 由於美股法人持股比例（13F報告）每季才公佈一次，具備嚴重落後性。因此本系統獨家採用**「3日移動平均量 ÷ 20日移動平均量」**作為法人即時動態的照妖鏡。
-    * 當指標衝破 **1.2x ~ 2.0x 倍速以上**，代表法人資金正在「**當下這幾天**」瘋狂加速流入吸籌，或者是空頭正在全力踩踏補回，這是波段大行情即時噴發的最即時籌碼足跡！
-    
     **🛡️ 法人持股比例（Institutional Held %）的黃金關係**
     * **【50% ~ 80%】 機構黃金護盤區：** 頂級核心資產的標準結構。代表「聰明錢」深度護盤，下殺到鐵板區時會有強大演算法買盤沒收。
     * **【高於 90%】 流動性枯竭警訊：** 機構幾乎把股票買光了，缺乏新主力抬轎，且一旦大基金換股出清，極易引發連環踩踏車禍。
-    * **【低於 30%】 散戶市/高投機標的：** 籌碼極度分散，風吹草動大家就會互相踩踏，波動劇烈。
+    * **【低於 30%】 散戶市/高投機標的：** 籌碼極度分散，風吹跨步大家就會互相踩踏，波動劇烈。
     """)
