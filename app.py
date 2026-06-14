@@ -36,7 +36,7 @@ PE_PRESETS = {
     '3702.TW': {'low_pe': 10.0, 'norm_pe': 12.5, 'high_pe': 15.0}
 }
 
-# 👑 【精準定錨 1】：完整鎖定您的 8 檔台股核心陣容中文字典
+# 台股中文對應字典
 TW_ZH_NAMES = {
     "2330.TW": "台積電", "2308.TW": "台達電", "2344.TW": "華邦電", 
     "2382.TW": "廣達",   "2408.TW": "南亞科", "3037.TW": "欣興", 
@@ -54,6 +54,30 @@ ROW_ORDER = [
 ]
 
 # ==============================================================================
+# 🗃️ 【數據層對接】自動由 Google Sheets 抽離核心配置庫
+# ==============================================================================
+# 👑 【核心修改處】：請把下方這行雙引號內，替換成你剛剛複製的 Google Sheet 連結！
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1vw48ID0fcg4tMQmwdETCqdbERlJZrEzw9-VOx5PEYGI/edit?usp=sharing"
+
+@st.cache_data(ttl=10)  # 設置 10 秒快取，防止重複向 Google 請求被鎖，同時維持高度即時性
+def load_config_from_sheets(url):
+    try:
+        # 將分享連結自動轉化為標準發射型 CSV 串流
+        csv_export_url = url.split("/edit")[0] + "/export?format=csv"
+        sheet_df = pd.read_csv(csv_export_url)
+        # 清洗數據
+        sheet_df['Ticker'] = sheet_df['Ticker'].astype(str).str.strip().str.upper()
+        sheet_df['Market'] = sheet_df['Market'].astype(str).str.strip().str.upper()
+        sheet_df['Type'] = sheet_df['Type'].astype(str).str.strip().str.upper()
+        return sheet_df
+    except Exception as e:
+        st.sidebar.error(f"⚠️ Google 試算表連線失敗，啟動備用應急機制: {e}")
+        return pd.DataFrame()
+
+# 載入雲端 Excel 多空資產庫
+config_df = load_config_from_sheets(SHEET_URL)
+
+# ==============================================================================
 # 🕹️ 【頂層設計】全球市場切換中樞
 # ==============================================================================
 st.sidebar.header("🕹️ 全球市場切換中樞")
@@ -61,14 +85,21 @@ market_choice = st.sidebar.radio("🌐 選擇看盤市場", ["🇺🇸 美股核
 
 if market_choice == "🇺🇸 美股核心指揮部":
     st.title("🎯 專屬美股戰略儀表板")
-    # 👑 【精準定錨 2】：完整寫死您的 14 檔美股戰略代碼，天王老子來了也不會掉！
-    default_tickers = "MARA, RKLB, GLW, RCAT, NVDA, TSLA, EOSE, AVGO, WM1, OKLO, MSFT, ONDS, AVAV, SMR"
     currency_sign = "$"
+    if not config_df.empty:
+        us_list = config_df[config_df['Market'] == 'US']['Ticker'].tolist()
+        default_tickers = ", ".join(us_list) if us_list else "MARA, RKLB, GLW, RCAT, NVDA, TSLA, EOSE, AVGO, WM1, OKLO, MSFT, ONDS, AVAV, SMR"
+    else:
+        default_tickers = "MARA, RKLB, GLW, RCAT, NVDA, TSLA, EOSE, AVGO, WM1, OKLO, MSFT, ONDS, AVAV, SMR"
 else:
     st.title("🎯 專屬台股戰略儀表板")
-    # 👑 【精準定錨 3】：完整寫死您的 8 檔台股代碼
-    default_tickers = "2330, 2308, 2344, 2382, 2408, 3037, 3702, 8033"
     currency_sign = "NT$"
+    if not config_df.empty:
+        # 還原台股純數字格式供輸入框顯示
+        tw_list = config_df[config_df['Market'] == 'TW']['Ticker'].str.replace(".TW", "", regex=False).tolist()
+        default_tickers = ", ".join(tw_list) if tw_list else "2330, 2308, 2344, 2382, 2408, 3037, 3702, 8033"
+    else:
+        default_tickers = "2330, 2308, 2344, 2382, 2408, 3037, 3702, 8033"
 
 # ==============================================================================
 # 📋 【智慧看板】明日開盤冷酷執行中央清單
@@ -120,25 +151,38 @@ for t in raw_tickers:
 
 user_configs = {}
 st.sidebar.markdown("---")
-st.sidebar.subheader("📝 每檔標的持倉設定")
+st.sidebar.subheader("📝 每檔標的持倉設定 (已與 Google 雲端同步)")
 
 for ticker in active_tickers:
     clean_label = ticker.replace(".TW", "")
+    
+    # 👑 【核心對齊】：自動從 Google 試算表提取該檔股票的配置
+    db_cost = None
+    db_target = 0.0
+    db_type = "BUY_TARGET"
+    db_desc = "下殺至目標價附近執行金字塔建倉"
+    
+    if not config_df.empty:
+        row = config_df[config_df['Ticker'] == ticker]
+        if not row.empty:
+            val_cost = row.iloc[0]['Cost']
+            db_cost = float(val_cost) if (pd.notna(val_cost) and val_cost > 0) else None
+            db_target = float(row.iloc[0]['Target']) if pd.notna(row.iloc[0]['Target']) else 0.0
+            db_type = str(row.iloc[0]['Type']) if pd.notna(row.iloc[0]['Type']) else "BUY_TARGET"
+            db_desc = str(row.iloc[0]['Strategy_Desc']) if pd.notna(row.iloc[0]['Strategy_Desc']) else ""
+
     with st.sidebar.expander(f"⚙️ {clean_label} 戰略配置規劃", expanded=False):
-        has_pos = st.checkbox("我已持有此部位", value=(ticker in ['RKLB', '2330.TW']), key=f"p_{market_choice}_{ticker}")
+        has_pos = st.checkbox("我已持有此部位", value=(db_cost is not None), key=f"p_{market_choice}_{ticker}")
         
         if has_pos:
-            def_cost = 71.36 if 'RKLB' in ticker else (950.0 if '2330' in ticker else 0.0)
-            cost = st.number_input(f"持倉成本", value=def_cost, step=0.1, key=f"c_{market_choice}_{ticker}")
+            cost = st.number_input(f"持倉成本", value=(db_cost if db_cost else 0.0), step=0.1, key=f"c_{market_choice}_{ticker}")
         else:
             cost = None
             
-        action_type = st.selectbox(f"目標類型", ["BUY_TARGET", "SELL_TARGET", "HOLD"], index=(1 if ticker in ['RKLB', '2330.TW'] else 0), key=f"ty_{market_choice}_{ticker}")
-        def_target = 110.0 if 'RKLB' in ticker else (1200.0 if '2330' in ticker else 0.0)
-        target = st.number_input(f"戰略目標價", value=def_target, step=1.0, key=f"tg_{market_choice}_{ticker}")
-        
-        def_desc = "限價單已準備，衝高獲利出清" if action_type == "SELL_TARGET" else "下殺至目標價附近執行金字塔建倉"
-        action_desc = st.text_input(f"部署規劃", value=def_desc, key=f"ds_{market_choice}_{ticker}")
+        type_idx = ["BUY_TARGET", "SELL_TARGET", "HOLD"].index(db_type) if db_type in ["BUY_TARGET", "SELL_TARGET", "HOLD"] else 0
+        action_type = st.selectbox(f"目標類型", ["BUY_TARGET", "SELL_TARGET", "HOLD"], index=type_idx, key=f"ty_{market_choice}_{ticker}")
+        target = st.number_input(f"戰略目標價", value=db_target, step=1.0, key=f"tg_{market_choice}_{ticker}")
+        action_desc = st.text_input(f"部署規劃", value=db_desc, key=f"ds_{market_choice}_{ticker}")
         
         user_configs[ticker] = {'cost': cost, 'target': target, 'type': action_type, 'action_desc': action_desc}
 
@@ -153,13 +197,14 @@ for ticker in active_tickers:
     
     try:
         stock = yf.Ticker(ticker)
+        # 👑 採用與 TradingView 100% 絕對咬合的原始價格定錨引擎
         df = stock.history(period="6mo", auto_adjust=False)
         if df.empty: continue
             
         current_price = df['Close'].iloc[-1]
         info = stock.info
         
-        # 👑 【風控安全閘】：盤查前 119 天歷史最低點，檢驗雷虎今日現價是否破底
+        # 👑 【V18 風控煞車安全閘】：盤查前 119 天歷史最低點，檢驗雷虎今日現價是否破底
         hist_low_119 = df['Low'].iloc[:-1].tail(119).min() if len(df) > 1 else current_price
         is_breaking_low = current_price < hist_low_119
         
@@ -209,7 +254,7 @@ for ticker in active_tickers:
         suffix_table = " (Sell)" if cfg['type'] == "SELL_TARGET" else (" (Buy)" if cfg['type'] == "BUY_TARGET" else " (Hold)")
         display_pred_target = f"{currency_sign}{cfg['target']:.2f}{suffix_table}" if cfg['target'] > 0 else "未設定"
 
-        # 費波南希運算 (交易所原始純淨整數)
+        # 費波南希運算 (100% 原始數據絕對整數對齊)
         auto_high_fib = df['High'].tail(120).max()
         diff = auto_high_fib - auto_low_fib
         
@@ -230,7 +275,7 @@ for ticker in active_tickers:
             pl_display = "❌ 尚未持倉"
             action_signal = "🟢 🚨 進入甜蜜建倉區！" if cfg['type'] == 'BUY_TARGET' and cfg['target'] > 0 and current_price <= cfg['target'] else "🟡 ⏳ 靜態伏擊觀察中"
             
-        # 👑 【煞車系統】：判定實質破底（如雷虎破線），強制沒收訊號改為最高警報
+        # 👑 【煞車系統】：判定實質破底（如雷虎），強制沒收多頭訊號改為最高警報
         if is_breaking_low:
             action_signal = "❌ 🚨 結構破底失效！嚴禁接刀，靜待止跌重新築底"
 
@@ -304,7 +349,7 @@ with tab_gui3:
     st.success("🛡️ 法人持股比例：50%~80% 屬於法人深度護盤的核心資產，流動性健全且下殺時具備上演算法接盤護體。")
 
 # ==============================================================================
-# 🔄 【前端無感刷新】
+# 🔄 【前端無感刷新】利用 HTML Meta 標籤重整
 # ==============================================================================
 st.markdown("---")
 st.components.v1.html('<meta http-equiv="refresh" content="60">', height=0)
