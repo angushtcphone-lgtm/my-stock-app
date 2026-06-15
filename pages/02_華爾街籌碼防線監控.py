@@ -6,28 +6,20 @@ import requests
 import datetime
 import io
 import random
-import time
 
 # 1. 網頁基礎設定
 st.set_page_config(page_title="華爾街隱形力量 - 核心指標監控儀表板", layout="wide")
-st.title("📊 核心指標與風險評估自動指引儀表板 (v2.0 - 隱蔽解鎖版)")
+st.title("📊 核心指標與風險評估自動指引儀表板 (v3.0 - 跨國路由版)")
 st.caption("即時時空背景：2026 年 6 月 FOMC 會議與美伊協議關鍵週")
 
-# 【高級偽裝瀏覽器 Session】
+# 【高級偽裝 Session】
 @st.cache_resource
 def get_stealth_session():
     session = requests.Session()
-    user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0'
-    ]
     session.headers.update({
-        'User-Agent': random.choice(user_agents),
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Referer': 'https://finance.yahoo.com/',
-        'Connection': 'keep-alive'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8'
     })
     return session
 
@@ -57,25 +49,21 @@ for t in st.session_state.tickers:
 
 # 4. 核心量化計算邏輯
 def calculate_indicators(df):
-    # 確保 columns 沒有層級衝突
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.droplevel(1)
         
-    # 確保必要欄位名稱正確 (相容兩種下載管道)
-    if 'Adj Close' in df.columns and 'Close' not in df.columns:
-        df['Close'] = df['Adj Close']
-    elif 'Adj Close' in df.columns:
-        df['Close'] = df['Adj Close'] # 優先採用還原權值價
-        
-    df['EMA_20'] = df['Close'].ewm(span=20, adjust=False).mean()
+    # 標準化各個資料庫的欄位名稱 (大小寫相容處理)
+    df.columns = [c.title() for c in df.columns]
+    
+    df['Ema_20'] = df['Close'].ewm(span=20, adjust=False).mean()
     
     delta = df['Close'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
     rs = gain / loss
-    df['RSI'] = 100 - (100 / (1 + rs))
+    df['Rsi'] = 100 - (100 / (1 + rs))
     
-    df['Vol_MA20'] = df['Volume'].rolling(window=20).mean()
+    df['Vol_Ma20'] = df['Volume'].rolling(window=20).mean()
     df['Is_Distribution'] = (df['Close'] < df['Close'].shift(1)) & (df['Volume'] > df['Vol_MA20'])
     return df
 
@@ -89,34 +77,37 @@ else:
         st.subheader(f"🔍 標的分析：{ticker_symbol}")
         
         data = pd.DataFrame()
+        source_used = "Yahoo Finance"
         
-        # --- 雙軌數據抓取防線 ---
-        # 軌道一：嘗試常態 yf.download 管道
+        # --- 💥 跨國雙軌多源路由調度系統 ───
+        # 路由 1：常態 Yahoo 管道嘗試
         try:
             data = yf.download(tickers=ticker_symbol, period="4m", session=session, progress=False, auto_adjust=True)
         except Exception:
             pass
             
-        # 軌道二：若常態管道失敗或被限流，立刻啟動【隱蔽式直連 CSV 串流技術】
+        # 路由 2：若 Yahoo 全面陣亡 (empty)，無縫切換至歐洲 Stooq 頂級數據備援中心
         if data.empty or len(data) < 20:
             try:
-                end_dt = datetime.datetime.now()
-                start_dt = end_dt - datetime.timedelta(days=120) # 抓4個月確保均線精確
-                p1 = int(start_dt.timestamp())
-                p2 = int(end_dt.timestamp())
+                source_used = "歐洲 Stooq 備援中心"
+                # 自動轉譯代碼格式
+                if ".TW" in ticker_symbol:
+                    stooq_ticker = ticker_symbol.lower()
+                else:
+                    stooq_ticker = f"{ticker_symbol.lower()}.us"
+                    
+                stooq_url = f"https://stooq.com/q/d/l/?s={stooq_ticker}&i=d"
+                resp = session.get(stooq_url, timeout=15)
                 
-                # 直連 Yahoo 最底層的無腳印數據交換 URL
-                stealth_url = f"https://query1.finance.yahoo.com/v7/finance/download/{ticker_symbol}?period1={p1}&period2={p2}&interval=1d&events=history&includeAdjustedClose=true"
-                
-                resp = session.get(stealth_url, timeout=10)
-                if resp.status_code == 200:
+                if resp.status_code == 200 and "Date" in resp.text:
                     data = pd.read_csv(io.StringIO(resp.text), parse_dates=['Date'], index_col='Date')
+                    data = data.sort_index().tail(90) # 擷取最近 90 個交易日數據
             except Exception as e:
-                st.error(f"備援管道發生異常: {e}")
+                pass
 
         # --- 數據渲染與規則判定中心 ---
         if data.empty or len(data) < 20:
-            st.error(f"❌ {ticker_symbol} 雙軌防線皆遭封鎖。請點擊右下角『Manage app』->『Reboot App』強制更換雲端節點 IP。")
+            st.error(f"❌ {ticker_symbol} 跨國所有數據庫（Yahoo & Stooq）皆遭阻斷。此為極端網路異常。")
             continue
             
         try:
@@ -125,17 +116,20 @@ else:
             prev_row = df.iloc[-2]
             
             curr_price = float(current_row['Close'])
-            curr_ema20 = float(current_row['EMA_20'])
-            curr_rsi = float(current_row['RSI'])
+            curr_ema20 = float(current_row['Ema_20'])
+            curr_rsi = float(current_row['Rsi'])
             curr_vol = float(current_row['Volume'])
             ma20_vol = float(current_row['Vol_MA20'])
             dist_to_ema20 = ((curr_price - curr_ema20) / curr_ema20) * 100
             
+            # 數據儀表板呈現
             m1, m2, m3, m4 = st.columns(4)
             m1.metric("最新收盤價", f"{curr_price:.2f}")
             m2.metric("最新 EMA 20 防線", f"{curr_ema20:.2f}")
-            m3.metric("RSI (14D)", f"{curr_rsi:.1f}", delta=f"{curr_rsi - float(prev_row['RSI']):.1f}")
+            m3.metric("RSI (14D)", f"{curr_rsi:.1f}", delta=f"{curr_rsi - float(prev_row['Rsi']):.1f}")
             m4.metric("距離 EMA 20 乖離率", f"{dist_to_ema20:.2f}%")
+            
+            st.caption(f"數據來源防護盾：此標的目前由【{source_used}】即時安全護航調度中")
             
             st.markdown("##### 🚦 系統硬性規則動態指引")
             
