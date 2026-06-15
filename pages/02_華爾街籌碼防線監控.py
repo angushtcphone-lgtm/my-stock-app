@@ -3,24 +3,31 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import requests
-import time
+import datetime
+import io
 import random
+import time
 
 # 1. 網頁基礎設定
 st.set_page_config(page_title="華爾街隱形力量 - 核心指標監控儀表板", layout="wide")
-st.title("📊 核心指標與風險評估自動指引儀表板 (v1.9)")
+st.title("📊 核心指標與風險評估自動指引儀表板 (v2.0 - 隱蔽解鎖版)")
 st.caption("即時時空背景：2026 年 6 月 FOMC 會議與美伊協議關鍵週")
 
-# 【反封鎖高級 Session】
+# 【高級偽裝瀏覽器 Session】
 @st.cache_resource
-def get_browser_session():
+def get_stealth_session():
     session = requests.Session()
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:126.0) Gecko/20100101 Firefox/126.0'
+    ]
     session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        'User-Agent': random.choice(user_agents),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
         'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        'Referer': 'https://finance.yahoo.com/',
+        'Connection': 'keep-alive'
     })
     return session
 
@@ -50,9 +57,15 @@ for t in st.session_state.tickers:
 
 # 4. 核心量化計算邏輯
 def calculate_indicators(df):
-    # 防止多層級 Index 導致計算出錯 (yf.download 常見特徵)
+    # 確保 columns 沒有層級衝突
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.droplevel(1)
+        
+    # 確保必要欄位名稱正確 (相容兩種下載管道)
+    if 'Adj Close' in df.columns and 'Close' not in df.columns:
+        df['Close'] = df['Adj Close']
+    elif 'Adj Close' in df.columns:
+        df['Close'] = df['Adj Close'] # 優先採用還原權值價
         
     df['EMA_20'] = df['Close'].ewm(span=20, adjust=False).mean()
     
@@ -70,29 +83,43 @@ def calculate_indicators(df):
 if not st.session_state.tickers:
     st.info("目前監控清單為空，請在左側側邊欄加入股票代碼。")
 else:
-    custom_session = get_browser_session()
+    session = get_stealth_session()
     
     for ticker_symbol in st.session_state.tickers:
         st.subheader(f"🔍 標的分析：{ticker_symbol}")
         
-        # 引入隨機微幅延遲，打散自動化請求特徵
-        time.sleep(random.uniform(0.3, 0.8))
+        data = pd.DataFrame()
         
+        # --- 雙軌數據抓取防線 ---
+        # 軌道一：嘗試常態 yf.download 管道
         try:
-            # 🔥 升級：改用最輕量、單次請求的 yf.download 機制
-            data = yf.download(
-                tickers=ticker_symbol, 
-                period="3m", 
-                session=custom_session, 
-                progress=False, 
-                auto_adjust=True
-            )
+            data = yf.download(tickers=ticker_symbol, period="4m", session=session, progress=False, auto_adjust=True)
+        except Exception:
+            pass
             
-            if data.empty or len(data) < 20:
-                st.error(f"⚠️ {ticker_symbol} 觸發華爾街 IP 防火牆保護 (HTTP 429 頻繁限制)。")
-                st.info("💡 贏家應對指南：這是雲端伺服器 IP 遭 Yahoo 暫時限流。請點擊右下角『Manage app』->『Reboot App』重啟切換雲端節點，或靜待數分鐘讓伺服器自動解鎖。")
-                continue
+        # 軌道二：若常態管道失敗或被限流，立刻啟動【隱蔽式直連 CSV 串流技術】
+        if data.empty or len(data) < 20:
+            try:
+                end_dt = datetime.datetime.now()
+                start_dt = end_dt - datetime.timedelta(days=120) # 抓4個月確保均線精確
+                p1 = int(start_dt.timestamp())
+                p2 = int(end_dt.timestamp())
                 
+                # 直連 Yahoo 最底層的無腳印數據交換 URL
+                stealth_url = f"https://query1.finance.yahoo.com/v7/finance/download/{ticker_symbol}?period1={p1}&period2={p2}&interval=1d&events=history&includeAdjustedClose=true"
+                
+                resp = session.get(stealth_url, timeout=10)
+                if resp.status_code == 200:
+                    data = pd.read_csv(io.StringIO(resp.text), parse_dates=['Date'], index_col='Date')
+            except Exception as e:
+                st.error(f"備援管道發生異常: {e}")
+
+        # --- 數據渲染與規則判定中心 ---
+        if data.empty or len(data) < 20:
+            st.error(f"❌ {ticker_symbol} 雙軌防線皆遭封鎖。請點擊右下角『Manage app』->『Reboot App』強制更換雲端節點 IP。")
+            continue
+            
+        try:
             df = calculate_indicators(data)
             current_row = df.iloc[-1]
             prev_row = df.iloc[-2]
@@ -133,4 +160,3 @@ else:
             
         except Exception as e:
             st.error(f"處理解析 {ticker_symbol} 時發生錯誤: {e}")
-            
