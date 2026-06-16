@@ -1,25 +1,26 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
 import numpy as np
 import requests
 import datetime
-import io
 import random
 
 # 1. 網頁基礎設定
 st.set_page_config(page_title="華爾街隱形力量 - 核心指標監控儀表板", layout="wide")
-st.title("📊 核心指標與風險評估自動指引儀表板 (v3.0 - 跨國路由版)")
+st.title("📊 核心指標與風險評估自動指引儀表板 (v4.0 - App協議版)")
 st.caption("即時時空背景：2026 年 6 月 FOMC 會議與美伊協議關鍵週")
 
-# 【高級偽裝 Session】
+# 【終極行動端偽裝 Session】
 @st.cache_resource
-def get_stealth_session():
+def get_app_protocol_session():
     session = requests.Session()
+    # 使用完全模擬 iPhone/Android 財經 App 的標頭特徵
     session.headers.update({
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'zh-TW,zh;q=0.9,en-US;q=0.8'
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 YahooFinanceApp/4.21.0',
+        'Accept': 'application/json',
+        'Accept-Language': 'zh-Tw,zh-Hant;q=0.9',
+        'Referer': 'https://finance.yahoo.com/',
+        'Connection': 'keep-alive'
     })
     return session
 
@@ -49,12 +50,6 @@ for t in st.session_state.tickers:
 
 # 4. 核心量化計算邏輯
 def calculate_indicators(df):
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.droplevel(1)
-        
-    # 標準化各個資料庫的欄位名稱 (大小寫相容處理)
-    df.columns = [c.title() for c in df.columns]
-    
     df['Ema_20'] = df['Close'].ewm(span=20, adjust=False).mean()
     
     delta = df['Close'].diff()
@@ -71,43 +66,51 @@ def calculate_indicators(df):
 if not st.session_state.tickers:
     st.info("目前監控清單為空，請在左側側邊欄加入股票代碼。")
 else:
-    session = get_stealth_session()
+    session = get_app_protocol_session()
     
     for ticker_symbol in st.session_state.tickers:
         st.subheader(f"🔍 標的分析：{ticker_symbol}")
         
         data = pd.DataFrame()
-        source_used = "Yahoo Finance"
         
-        # --- 💥 跨國雙軌多源路由調度系統 ───
-        # 路由 1：常態 Yahoo 管道嘗試
+        # --- 💥 降維打擊：呼叫 Yahoo Mobile App 核心 JSON 管道 ───
         try:
-            data = yf.download(tickers=ticker_symbol, period="4m", session=session, progress=False, auto_adjust=True)
-        except Exception:
-            pass
+            # range=4m 代表抓取 4 個月歷史，interval=1d 代表日K線
+            app_url = f"https://query2.finance.yahoo.com/v8/finance/chart/{ticker_symbol}?range=4m&interval=1d"
+            resp = session.get(app_url, timeout=10)
             
-        # 路由 2：若 Yahoo 全面陣亡 (empty)，無縫切換至歐洲 Stooq 頂級數據備援中心
-        if data.empty or len(data) < 20:
-            try:
-                source_used = "歐洲 Stooq 備援中心"
-                # 自動轉譯代碼格式
-                if ".TW" in ticker_symbol:
-                    stooq_ticker = ticker_symbol.lower()
-                else:
-                    stooq_ticker = f"{ticker_symbol.lower()}.us"
-                    
-                stooq_url = f"https://stooq.com/q/d/l/?s={stooq_ticker}&i=d"
-                resp = session.get(stooq_url, timeout=15)
+            if resp.status_code == 200:
+                json_data = resp.json()
+                result = json_data['chart']['result'][0]
                 
-                if resp.status_code == 200 and "Date" in resp.text:
-                    data = pd.read_csv(io.StringIO(resp.text), parse_dates=['Date'], index_col='Date')
-                    data = data.sort_index().tail(90) # 擷取最近 90 個交易日數據
-            except Exception as e:
-                pass
+                # 解析時間戳與基礎量價
+                timestamps = result['timestamp']
+                dates = [datetime.datetime.fromtimestamp(ts) for ts in timestamps]
+                quote = result['indicators']['quote'][0]
+                
+                # 優先採用還原權值的 adjclose 數據流 (若存在)
+                if 'adjclose' in result['indicators'] and 'adjclose' in result['indicators']['adjclose'][0]:
+                    close_prices = result['indicators']['adjclose'][0]['adjclose']
+                else:
+                    close_prices = quote['close']
+                
+                # 重新組裝成標準量價 DataFrame
+                raw_df = pd.DataFrame({
+                    'Open': quote['open'],
+                    'High': quote['high'],
+                    'Low': quote['low'],
+                    'Close': close_prices,
+                    'Volume': quote['volume']
+                }, index=pd.to_datetime(dates))
+                
+                raw_df.index.name = 'Date'
+                data = raw_df.dropna() # 清除極少數的空值交易日
+        except Exception as e:
+            st.error(f"App 協議管道解析異常: {e}")
 
         # --- 數據渲染與規則判定中心 ---
         if data.empty or len(data) < 20:
-            st.error(f"❌ {ticker_symbol} 跨國所有數據庫（Yahoo & Stooq）皆遭阻斷。此為極端網路異常。")
+            st.error(f"❌ {ticker_symbol} 行動端通訊協定亦遭攔截。請嘗試至右下角選單執行 Reboot App 重置網路環境。")
             continue
             
         try:
@@ -129,7 +132,7 @@ else:
             m3.metric("RSI (14D)", f"{curr_rsi:.1f}", delta=f"{curr_rsi - float(prev_row['Rsi']):.1f}")
             m4.metric("距離 EMA 20 乖離率", f"{dist_to_ema20:.2f}%")
             
-            st.caption(f"數據來源防護盾：此標的目前由【{source_used}】即時安全護航調度中")
+            st.caption("數據來源防護盾：此標的目前已成功由【Yahoo Mobile App 核心 JSON 協議】安全護航解鎖")
             
             st.markdown("##### 🚦 系統硬性規則動態指引")
             
